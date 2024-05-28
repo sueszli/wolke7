@@ -1,7 +1,11 @@
 """
 Demo script to show how to use YOLO object detection with OpenCV.
 
-$ python3 ./src/demo.py --image-path ./data/input_folder/000000000001.jpg
+$ python3 ./src/demo.py --image-path ./data/input_folder/000000000968.jpg
+
+    [[111, 190, 224, 184]] ['cat'] [0.931888222694397] 
+
+returns the bounding box coordinates, class names, and confidence scores.
 
 see: https://github.com/opencv/opencv/blob/4.x/samples/dnn/object_detection.py
 """
@@ -28,11 +32,9 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
+    assert Path(args.image_path).exists(), f"image not found: {args.image_path}"
 
     # Load YOLO
-    print(str(MODEL_CONFIG))
-    print(str(MODEL_WEIGHTS))
-
     net = cv2.dnn.readNetFromDarknet(str(MODEL_CONFIG), str(MODEL_WEIGHTS))
     with open(COCO_NAMES, "r") as f:
         classes = [line.strip() for line in f.readlines()]
@@ -87,7 +89,7 @@ if __name__ == "__main__":
 
     # Draw the bounding boxes
     COLORS = np.random.randint(0, 255, size=(len(classes), 3))
-    print(boxes, [classes[i] for i in classIds], confidences)
+    print(boxes, [classes[i] for i in classIds], confidences)  # boxes, classes, confidences
     if len(boxes) > 0:
         # loop over the indexes we are keeping
         for i, box in enumerate(boxes):
