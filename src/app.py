@@ -2,17 +2,18 @@ from flask import Flask, request, jsonify
 import base64
 import cv2
 import numpy as np
+from pathlib import Path
 
 app = Flask(__name__)
 
 
 class ObjectDetection:
     def __init__(self):
-        self.MODEL_CONFIG = "yolo_tiny_configs/yolov3-tiny.cfg"
-        self.MODEL_WEIGHTS = "yolo_tiny_configs/yolov3-tiny.weights"
-        self.COCO_NAMES = "yolo_tiny_configs/coco.names"
+        self.MODEL_CONFIG = Path.cwd() / "yolo_tiny_configs" / "yolov3-tiny.cfg"
+        self.MODEL_WEIGHTS = Path.cwd() / "yolo_tiny_configs" / "yolov3-tiny.weights"
+        self.COCO_NAMES = Path.cwd() / "yolo_tiny_configs" / "coco.names"
 
-        self.net = cv2.dnn.readNet(self.MODEL_WEIGHTS, self.MODEL_CONFIG)
+        self.net = cv2.dnn.readNet(str(self.MODEL_WEIGHTS), str(self.MODEL_CONFIG))
         with open(self.COCO_NAMES, "r") as f:
             self.classes = [line.strip() for line in f.readlines()]
 
@@ -72,10 +73,10 @@ detector = ObjectDetection()
 @app.route("/api/object_detection", methods=["POST"])
 def object_detection():
     data = request.get_json()
-    img_id = data["id"]
-    img_data = base64.b64decode(data["image_data"])
+    img_id = data["id"]  # just read and return the image ID
+    img_data = base64.b64decode(data["image_data"])  # decode base64 image data
 
-    detected_objects = detector.detect_objects(img_data)
+    detected_objects = detector.detect_objects(img_data)  # detect objects in the image
     return jsonify({"id": img_id, "objects": detected_objects})
 
 
