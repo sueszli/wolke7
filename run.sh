@@ -15,7 +15,6 @@ pip install -r requirements.txt
 
 # ------------------------------------------ run program
 
-
 python3 ./src/server.py
 # {
 #   "id":"UUID (from client)", 
