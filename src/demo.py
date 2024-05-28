@@ -1,5 +1,7 @@
 """
 Utils script to visualize the output of the YOLO object detection model.
+
+see: https://github.com/opencv/opencv/blob/4.x/samples/dnn/object_detection.py
 """
 
 import cv2
@@ -10,8 +12,6 @@ import numpy as np
 MODEL_CONFIG = "yolo_tiny_configs/yolov3-tiny.cfg"
 MODEL_WEIGHTS = "yolo_tiny_configs/yolov3-tiny.weights"
 COCO_NAMES = "yolo_tiny_configs/coco.names"
-
-# https://github.com/opencv/opencv/blob/4.x/samples/dnn/object_detection.py
 
 
 def get_args():
