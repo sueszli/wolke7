@@ -15,7 +15,8 @@ pip install -r requirements.txt
 
 # ------------------------------------------ run program
 
-# server:
+
+python3 ./src/server.py
 # {
 #   "id":"UUID (from client)", 
 #   "objects": [ 
@@ -26,11 +27,9 @@ pip install -r requirements.txt
 #       ... 
 #   ] 
 # }
-python3 ./src/server.py
 
-# client:
+python3 ./src/client.py ./data/input_folder http://127.0.0.1:5000/api/object_detection
 # { 
 #   "id": "UUID", 
 #   "image_data": "base64_encoded_image" 
 # } 
-python3 ./src/client.py ./data/input_folder/ http://localhost:5000/api/object_detection

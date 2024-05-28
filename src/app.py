@@ -73,10 +73,9 @@ detector = ObjectDetection()
 @app.route("/api/object_detection", methods=["POST"])
 def object_detection():
     data = request.get_json()
-    img_id = data["id"]  # just read and return the image ID
-    img_data = base64.b64decode(data["image_data"])  # decode base64 image data
-
-    detected_objects = detector.detect_objects(img_data)  # detect objects in the image
+    img_id = data["id"]  # return the UUID sent by the client as is
+    img_data = base64.b64decode(data["image_data"])  # detect objects in base64 encoded image data
+    detected_objects = detector.detect_objects(img_data)
     return jsonify({"id": img_id, "objects": detected_objects})
 
 
