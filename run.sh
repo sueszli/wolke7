@@ -1,3 +1,9 @@
+# ------------------------------------------ untar data
+
+tar -xvf ./data/input_folder.tar.gz -C ./data/
+
+# ------------------------------------------ install deps
+
 python3 -m pip install --upgrade pip
 
 # find out dependencies
