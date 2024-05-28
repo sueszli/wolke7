@@ -1,5 +1,7 @@
 """
-Utils script to visualize the output of the YOLO object detection model.
+Demo script to show how to use YOLO object detection with OpenCV.
+
+$ python3 ./src/demo.py --image-path ./data/input_folder/000000000001.jpg
 
 see: https://github.com/opencv/opencv/blob/4.x/samples/dnn/object_detection.py
 """
@@ -7,11 +9,12 @@ see: https://github.com/opencv/opencv/blob/4.x/samples/dnn/object_detection.py
 import cv2
 import argparse
 import numpy as np
+from pathlib import Path
 
-# YOLO configuration
-MODEL_CONFIG = "yolo_tiny_configs/yolov3-tiny.cfg"
-MODEL_WEIGHTS = "yolo_tiny_configs/yolov3-tiny.weights"
-COCO_NAMES = "yolo_tiny_configs/coco.names"
+
+MODEL_CONFIG = Path.cwd() / "yolo_tiny_configs" / "yolov3-tiny.cfg"
+MODEL_WEIGHTS = Path.cwd() / "yolo_tiny_configs" / "yolov3-tiny.weights"
+COCO_NAMES = Path.cwd() / "yolo_tiny_configs" / "coco.names"
 
 
 def get_args():
@@ -27,7 +30,10 @@ if __name__ == "__main__":
     args = get_args()
 
     # Load YOLO
-    net = cv2.dnn.readNet(MODEL_WEIGHTS, MODEL_CONFIG)
+    print(str(MODEL_CONFIG))
+    print(str(MODEL_WEIGHTS))
+
+    net = cv2.dnn.readNetFromDarknet(str(MODEL_CONFIG), str(MODEL_WEIGHTS))
     with open(COCO_NAMES, "r") as f:
         classes = [line.strip() for line in f.readlines()]
 
