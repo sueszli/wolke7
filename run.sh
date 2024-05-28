@@ -6,11 +6,9 @@ tar -xvf ./data/input_folder.tar.gz -C ./data/
 
 python3 -m pip install --upgrade pip
 
-# find out dependencies
-# rm -rf requirements.txt
-# pip install pipreqs
-# pipreqs .
-
-# install dependencies
 pip install black
+
+rm -rf requirements.txt
+pip install pipreqs
+pipreqs .
 pip install -r requirements.txt
