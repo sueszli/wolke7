@@ -2,23 +2,31 @@
 
 i. check your emails for "AWS academy", sign up
 
-ii. watch tutorials:
+ii. open your aws console:
 
--   `Courses` > `Modules` > `AWS Academy Learner Lab Resources` > `Demo - How to Launch Services through AWS Console`
--   `Courses` > `Modules` > `AWS Academy Learner Lab Resources` > `Learner Lab Activity - CodeWhisperer`
-
-iii. open your aws console:
-
+-   ignore all tutorials, they're useless
 -   `Courses` > `Modules` > `AWS Academy Learner Lab Resources` > `Launch AWS Academy Learner Lab` > `Start Lab`
+-   wait until the lab is ready
+-   click on `AWS Details`
 
----
+```bash
+# install aws cli
+brew install awscli
 
-product lookup: https://aws.amazon.com/console/
+# enter stuff based on what you read on `AWS Details`
+aws configure
 
-aws docs: https://docs.aws.amazon.com/
+# create a bucket
+aws s3api create-bucket --bucket wolke-sieben --region us-east-1
 
-lab tutorial: https://awsacademy.instructure.com/courses/82630
+# show buckets and objects
+aws s3api list-buckets
+aws s3api list-objects --bucket wolke-sieben
 
-aws lab session: https://awsacademy.instructure.com/courses/82630/modules/items/7490502
+# upload a directory
+aws s3 cp ./data/input_folder s3://wolke-sieben/input_folder --recursive
 
-how to upload files into s3: https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html
+# empty bucket and delete it
+aws s3 rm s3://wolke-sieben --recursive
+aws s3api delete-bucket --bucket wolke-sieben
+```
