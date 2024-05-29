@@ -16,7 +16,7 @@ pip install -r requirements.txt
 # ------------------------------------------ run program
 
 # start server
-python3 ./src/server.py
+python3 ./src/local/app.py
 
 # start client
-python3 ./src/client.py ./data/input_folder http://127.0.0.1:5000/api/object_detection
+python3 ./src/local/client.py ./data/input_folder http://127.0.0.1:5000/api/object_detection
