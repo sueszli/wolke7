@@ -1,6 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 import zipfile
+import json
 from pathlib import Path
 from colorama import Fore, Style
 from util import *
@@ -19,10 +20,18 @@ aws lambda invoke --function-name my-function response.json && rm -rf response.j
 def create_lambda_function(function_name, zip_file):
     print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
 
-    client = boto3.client("lambda", region_name="us-west-1")
+    client = boto3.client("lambda")
     accountid = boto3.client("sts").get_caller_identity()["Account"]
-    print(f"accountid: {accountid}")
     role = "LabRole"
+
+    assert zip_file.exists(), f"zip file {zip_file} does not exist"
+    assert zip_file.suffix == ".zip", f"zip file {zip_file} must have .zip extension"
+    assert zip_file.stat().st_size > 0, f"zip file {zip_file} must not be empty"
+    existing_functions = client.list_functions()["Functions"]
+    for function in existing_functions:
+        if function_name == function["FunctionName"]:
+            print(f"lambda function {function_name} already exists")
+            return
 
     with open(zip_file, "rb") as f:
         response = client.create_function(
@@ -32,7 +41,7 @@ def create_lambda_function(function_name, zip_file):
             Handler="lambda_function.lambda_handler",
             Code={"ZipFile": f.read()},
         )
-    print(response)
+    print(json.dumps(response, indent=2))
 
     print(f"created lambda function {function_name}")
 
@@ -40,7 +49,7 @@ def create_lambda_function(function_name, zip_file):
 def invoke_lambda_function(function_name):
     print(f"{Fore.GREEN}invoking lambda function {function_name}{Style.RESET_ALL}")
 
-    client = boto3.client("lambda", region_name="us-west-1")
+    client = boto3.client("lambda")
     response = client.invoke(FunctionName=function_name)
     print(response)
 
@@ -50,16 +59,14 @@ def list_lambda_functions():
 
     client = boto3.client("lambda")
     response = client.list_functions()
-    print("functions:")
-    if "Functions" in response:
-        for function in response["Functions"]:
-            print(f"\t{function['FunctionName']}")
+    for function in response["Functions"]:
+        print(f"\t{function['FunctionName']}")
 
 
 def delete_lambda_function(function_name):
     print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
 
-    client = boto3.client("lambda", region_name="us-west-1")
+    client = boto3.client("lambda")
     response = client.delete_function(FunctionName=function_name)
     print(response)
 
@@ -80,7 +87,7 @@ if __name__ == "__main__":
     # ----
 
     function_name = "wolke-sieben-lambda"
-    # create_lambda_function(function_name, lambdazip)
+    create_lambda_function(function_name, lambdazip)
 
     # invoke_lambda_function(function_name)
 
