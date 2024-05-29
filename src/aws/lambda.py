@@ -9,16 +9,6 @@ from colorama import Fore, Style
 from util import *
 
 
-"""
-# create a lambda function
-# notice how we're using the existing `LabRole` role
-aws lambda create-function --function-name my-function --runtime python3.8 --role arn:aws:iam::<YOUR ACCOUNT ID HERE>:role/LabRole --handler lambda_function.lambda_handler --zip-file fileb://lambda_function.zip
-
-# invoke the lambda function and print the output
-aws lambda invoke --function-name my-function response.json && rm -rf response.json
-"""
-
-
 def create_lambda_function(function_name, zip_file):
     print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
 
