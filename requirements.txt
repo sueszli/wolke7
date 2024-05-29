@@ -5,3 +5,5 @@ numpy==1.26.4
 opencv_python==4.9.0.80
 Requests==2.32.2
 tqdm==4.66.4
+psutil==5.9.8
+GPUtil==1.4.0

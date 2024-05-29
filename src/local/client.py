@@ -4,7 +4,7 @@ import json
 import os
 import uuid
 import argparse
-from pathlib import Path
+import time
 
 
 def get_args():
@@ -38,15 +38,48 @@ if __name__ == "__main__":
     args = get_args()
     print(f"{args=}")
 
+    total_transfer_time = 0
+    total_inference_time = 0
+    num_images = 0
+
     for image_name in os.listdir(args.input_folder):
         if image_name.endswith((".jpg", ".jpeg", ".png")):
             image_path = os.path.join(args.input_folder, image_name)
             image_id = str(uuid.uuid4())
             image_data = encode_image(image_path)
             payload = {"id": image_id, "image_data": image_data}
-            response = requests.post(args.endpoint, json=payload)
+
+            start_transfer_time = time.time()
+            response = requests.post(f"{args.endpoint}/object_detection", json=payload)
+            end_transfer_time = time.time()
+            transfer_time = end_transfer_time - start_transfer_time
 
             assert response.status_code == 200, f"Status code: {response.status_code}"
             assert response.json()["id"] == image_id, f"Image ID mismatch for {image_id}"
 
-            print(json.dumps(response.json(), indent=4))
+            response_data = response.json()
+            print(json.dumps(response_data, indent=4))
+
+            inference_time = response_data["inference_time"]
+            total_transfer_time += transfer_time
+            total_inference_time += inference_time
+            num_images += 1
+
+            print(json.dumps(response_data, indent=4))
+            print(f"Transfer Time: {transfer_time:.4f} seconds")
+            print(f"Inference Time: {inference_time:.4f} seconds")
+
+    print("\n\n**** Local Execution Summary ****")
+    print(f"Total Transfer Time: {total_transfer_time:.4f} seconds")
+    if num_images > 0:
+        avg_transfer_time = total_transfer_time / num_images
+        avg_inference_time = total_inference_time / num_images
+        print(f"Average Transfer Time: {avg_transfer_time:.4f} seconds")
+        print(f"Average Inference Time: {avg_inference_time:.4f} seconds")
+
+    # Fetch system info
+    response = requests.get(f"{args.endpoint}/system_info")
+    assert response.status_code == 200, f"Status code: {response.status_code}"
+
+    system_info = response.json()
+    print("System Information:", json.dumps(system_info, indent=4))

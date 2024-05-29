@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 # start client and server
 python3 ./src/local/server.py
-python3 ./src/local/client.py ./data/input_folder http://127.0.0.1:5000/api/object_detection
+python3 ./src/local/client.py ./data/input_folder http://127.0.0.1:5000/api
 ```
 
 # deploying to aws
