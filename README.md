@@ -31,13 +31,19 @@ ii. open your aws console:
 -   click on `AWS Details`
 
 ```bash
-brew install jq
 brew install awscli
-
-# ------------------------------------------------------------------ s3 stuff
 
 # enter stuff based on what you read on `AWS Details`
 aws configure
+```
+
+a bunch of cli commands to interact with aws:
+
+-   cli docs: https://docs.aws.amazon.com/cli/latest/
+-   boto3 docs: https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
+
+```bash
+# ------------------------------------------------------------------ s3 stuff
 
 # create a bucket
 aws s3api create-bucket --bucket wolke-sieben --region us-east-1
@@ -71,12 +77,8 @@ aws lambda create-function --function-name my-function --runtime python3.8 --rol
 aws lambda invoke --function-name my-function response.json && rm -rf response.json
 
 # show existing lambda functions
-aws lambda list-functions | jq '.Functions[].FunctionName'
+aws lambda list-functions
 
 # delete the lambda function
 aws lambda delete-function --function-name my-function
 ```
-
-cli docs: https://docs.aws.amazon.com/cli/latest/
-
-boto3 docs: https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
