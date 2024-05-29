@@ -7,35 +7,21 @@ from util import *
 
 
 """
-# create demo lambda function
-echo 'def lambda_handler(event, context): print(event)' > lambda_function.py
-zip lambda_function.zip lambda_function.py
-
-# note your own account id
-aws sts get-caller-identity
-
 # create a lambda function
-# change `<YOUR ACCOUNT ID HERE>` with your own account id
 # notice how we're using the existing `LabRole` role
 aws lambda create-function --function-name my-function --runtime python3.8 --role arn:aws:iam::<YOUR ACCOUNT ID HERE>:role/LabRole --handler lambda_function.lambda_handler --zip-file fileb://lambda_function.zip
 
 # invoke the lambda function and print the output
 aws lambda invoke --function-name my-function response.json && rm -rf response.json
-
-# show existing lambda functions
-aws lambda list-functions
-
-# delete the lambda function
-aws lambda delete-function --function-name my-function
 """
-
-client = boto3.client("lambda", region_name="us-west-1")
 
 
 def create_lambda_function(function_name, zip_file):
     print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
 
+    client = boto3.client("lambda", region_name="us-west-1")
     accountid = boto3.client("sts").get_caller_identity()["Account"]
+    print(f"accountid: {accountid}")
     role = "LabRole"
 
     with open(zip_file, "rb") as f:
@@ -46,59 +32,65 @@ def create_lambda_function(function_name, zip_file):
             Handler="lambda_function.lambda_handler",
             Code={"ZipFile": f.read()},
         )
+    print(response)
 
     print(f"created lambda function {function_name}")
-    return response["FunctionArn"]
 
 
 def invoke_lambda_function(function_name):
     print(f"{Fore.GREEN}invoking lambda function {function_name}{Style.RESET_ALL}")
 
+    client = boto3.client("lambda", region_name="us-west-1")
     response = client.invoke(FunctionName=function_name)
-
-    print(f"invoked lambda function {function_name}")
-    return response
+    print(response)
 
 
 def list_lambda_functions():
     print(f"{Fore.GREEN}listing lambda functions{Style.RESET_ALL}")
 
+    client = boto3.client("lambda", region_name="us-west-1")
     response = client.list_functions()
 
-    print(f"listed lambda functions")
-    return response
+    print("lambda functions:")
+    for function in response["Functions"]:
+        print(f"\t{function['FunctionName']}")
 
 
 def delete_lambda_function(function_name):
     print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
 
+    client = boto3.client("lambda", region_name="us-west-1")
     response = client.delete_function(FunctionName=function_name)
-
-    print(f"deleted lambda function {function_name}")
-    return response
+    print(response)
 
 
 if __name__ == "__main__":
     assert_user_authenticated()
 
-    # create temporary zip to upload function
+    # create lambda zip file
     lambdapath = Path.cwd() / "src" / "aws" / "lambda_function.py"
     lambdazip = lambdapath.with_suffix(".zip")
     if lambdazip.exists():
         lambdazip.unlink()
+        print(f"deleted lambda zip")
     with zipfile.ZipFile(lambdazip, "w") as z:
         z.write(lambdapath, lambdapath.name)
-    print(f"{Fore.GREEN}created zip {lambdazip}{Style.RESET_ALL}")
+    print(f"created lambda zip")
 
-    function_name = "my-function"
+    # ----
+
+    function_name = "wolke-sieben-lambda"
     create_lambda_function(function_name, lambdazip)
 
-    invoke_lambda_function(function_name)
+    # invoke_lambda_function(function_name)
 
-    list_lambda_functions()
+    # list_lambda_functions()
 
-    delete_lambda_function(function_name)
+    # delete_lambda_function(function_name)
 
-    # delete zip file
+    # ----
+
+    # create lambda zip file
     if lambdazip.exists():
         lambdazip.unlink()
+    print(f"deleted lambda zip")

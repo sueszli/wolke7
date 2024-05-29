@@ -87,7 +87,7 @@ def delete_bucket(bucket_name):
 if __name__ == "__main__":
     assert_user_authenticated()
 
-    bucket_name = "wolke-sieben"
+    bucket_name = "wolke-sieben-bucket"
 
     create_bucket(bucket_name)
     list_buckets()
