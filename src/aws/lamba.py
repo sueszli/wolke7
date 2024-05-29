@@ -1,7 +1,9 @@
 import boto3
+from botocore.exceptions import ClientError
 import zipfile
 from pathlib import Path
 from colorama import Fore, Style
+from util import *
 
 
 """
@@ -77,6 +79,8 @@ def delete_lambda_function(function_name):
 
 
 if __name__ == "__main__":
+    assert_user_authenticated()
+
     # create temporary zip to upload function
     lambdapath = Path.cwd() / "src" / "aws" / "lambda_function.py"
     lambdazip = lambdapath.with_suffix(".zip")

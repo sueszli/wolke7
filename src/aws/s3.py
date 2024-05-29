@@ -1,7 +1,9 @@
 import boto3
+from botocore.exceptions import ClientError
 from pathlib import Path
 from colorama import Fore, Style
 from tqdm import tqdm
+from util import *
 
 
 def create_bucket(bucket_name):
@@ -83,6 +85,8 @@ def delete_bucket(bucket_name):
 
 
 if __name__ == "__main__":
+    assert_user_authenticated()
+
     bucket_name = "wolke-sieben"
 
     create_bucket(bucket_name)
