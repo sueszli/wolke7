@@ -3,6 +3,8 @@ from colorama import Fore, Style
 
 
 """
+# --- CLI commands ---
+
 # create demo lambda function
 echo 'def lambda_handler(event, context): print(event)' > lambda_function.py
 zip lambda_function.zip lambda_function.py

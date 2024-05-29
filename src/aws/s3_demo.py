@@ -5,6 +5,8 @@ from tqdm import tqdm
 
 
 """
+# --- CLI commands ---
+
 # create a bucket
 aws s3api create-bucket --bucket wolke-sieben --region us-east-1
 
