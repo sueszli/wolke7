@@ -1,4 +1,23 @@
-# how to run
+# running local code
+
+```bash
+# unzip input folder
+tar -xvf ./data/input_folder.tar.gz -C ./data/
+
+# install dependencies
+python3 -m pip install --upgrade pip
+pip install black
+# rm -rf requirements.txt && pip install pipreqs && pipreqs .
+pip install -r requirements.txt
+
+# start server
+python3 ./src/local/app.py
+
+# start client
+python3 ./src/local/client.py ./data/input_folder http://127.0.0.1:5000/api/object_detection
+```
+
+# deploying to aws
 
 i. check your emails for "AWS academy", sign up
 
