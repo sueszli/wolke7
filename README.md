@@ -2,6 +2,8 @@
 
 i. check your emails for "AWS academy", sign up
 
+-   https://awsacademy.instructure.com/courses/82630/modules/items/7490502
+
 ii. open your aws console:
 
 -   ignore all tutorials, they're useless
