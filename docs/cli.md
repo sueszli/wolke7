@@ -1,10 +1,24 @@
-import boto3
-from colorama import Fore, Style
+# s3
 
+```bash
+# create a bucket
+aws s3api create-bucket --bucket wolke-sieben --region us-east-1
 
-"""
-# --- CLI commands ---
+# show buckets and objects
+aws s3api list-buckets
+aws s3api list-objects --bucket wolke-sieben
 
+# upload a directory
+aws s3 cp ./data/input_folder s3://wolke-sieben/input_folder --recursive
+
+# empty bucket and delete it
+aws s3 rm s3://wolke-sieben --recursive
+aws s3api delete-bucket --bucket wolke-sieben
+```
+
+# lambda
+
+```bash
 # create demo lambda function
 echo 'def lambda_handler(event, context): print(event)' > lambda_function.py
 zip lambda_function.zip lambda_function.py
@@ -25,12 +39,4 @@ aws lambda list-functions
 
 # delete the lambda function
 aws lambda delete-function --function-name my-function
-"""
-
-
-def get_account_id():
-    return boto3.client("sts").get_caller_identity()["Account"]
-
-
-if __name__ == "__main__":
-    print(f"account id: {get_account_id()}")
+```

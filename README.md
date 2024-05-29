@@ -41,5 +41,5 @@ iii. use the cli or boto3 to access aws services:
 -   boto3 docs: https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
 
 ```bash
-python3 ./src/aws/s3_demo.py
+python3 ./src/aws/<...>.py
 ```

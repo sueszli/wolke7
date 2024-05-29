@@ -83,22 +83,6 @@ def delete_bucket(bucket_name):
 
 
 if __name__ == "__main__":
-    """
-    # create a bucket
-    aws s3api create-bucket --bucket wolke-sieben --region us-east-1
-
-    # show buckets and objects
-    aws s3api list-buckets
-    aws s3api list-objects --bucket wolke-sieben
-
-    # upload a directory
-    aws s3 cp ./data/input_folder s3://wolke-sieben/input_folder --recursive
-
-    # empty bucket and delete it
-    aws s3 rm s3://wolke-sieben --recursive
-    aws s3api delete-bucket --bucket wolke-sieben
-    """
-
     bucket_name = "wolke-sieben"
 
     create_bucket(bucket_name)
