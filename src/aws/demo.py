@@ -36,7 +36,7 @@ def create_bucket(bucket_name):
         print(f"bucket {bucket_name} already exists")
         return
 
-    s3.create_bucket(Bucket=bucket_name)
+    s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-east-1"})
     print(f"created bucket {bucket_name}")
 
 
