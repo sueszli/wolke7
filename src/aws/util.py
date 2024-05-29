@@ -13,5 +13,5 @@ def assert_user_authenticated():
         ec2 = boto3.client("ec2")
         instances = ec2.describe_instances()
     except ClientError as e:
-        print(f"{Fore.RED}ec2 instance not accessible{Style.RESET_ALL}")
+        print(f"{Fore.RED}ec2 instance not accessible - start lab, update credentials{Style.RESET_ALL}")
         exit(1)
