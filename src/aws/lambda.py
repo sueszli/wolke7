@@ -91,6 +91,7 @@ if __name__ == "__main__":
         z.write(lambdapath, lambdapath.name)
     print(f"created lambda zip")
 
+    # create, invoke, list, and delete lambda function
     function_name = "wolke-sieben-lambda"
     create_lambda_function(function_name, lambdazip)
     list_lambda_functions()
