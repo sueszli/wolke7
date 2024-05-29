@@ -48,12 +48,12 @@ def invoke_lambda_function(function_name):
 def list_lambda_functions():
     print(f"{Fore.GREEN}listing lambda functions{Style.RESET_ALL}")
 
-    client = boto3.client("lambda", region_name="us-west-1")
+    client = boto3.client("lambda")
     response = client.list_functions()
-
-    print("lambda functions:")
-    for function in response["Functions"]:
-        print(f"\t{function['FunctionName']}")
+    print("functions:")
+    if "Functions" in response:
+        for function in response["Functions"]:
+            print(f"\t{function['FunctionName']}")
 
 
 def delete_lambda_function(function_name):
@@ -80,11 +80,11 @@ if __name__ == "__main__":
     # ----
 
     function_name = "wolke-sieben-lambda"
-    create_lambda_function(function_name, lambdazip)
+    # create_lambda_function(function_name, lambdazip)
 
     # invoke_lambda_function(function_name)
 
-    # list_lambda_functions()
+    list_lambda_functions()
 
     # delete_lambda_function(function_name)
 
