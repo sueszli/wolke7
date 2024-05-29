@@ -62,7 +62,11 @@ class ObjectDetection:
             for i in indexes:
                 label = str(self.classes[class_ids[i]])
                 confidence = confidences[i]
-                detected_objects.append({"label": label, "accuracy": confidence})
+
+                # filter out low confidence detections
+                threshold = 0.5
+                if confidence > threshold:
+                    detected_objects.append({"label": label, "accuracy": confidence})
 
         return detected_objects
 

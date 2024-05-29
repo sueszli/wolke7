@@ -10,10 +10,8 @@ pip install black
 # rm -rf requirements.txt && pip install pipreqs && pipreqs .
 pip install -r requirements.txt
 
-# start server
-python3 ./src/local/app.py
-
-# start client
+# start client and server
+python3 ./src/local/server.py
 python3 ./src/local/client.py ./data/input_folder http://127.0.0.1:5000/api/object_detection
 ```
 
@@ -30,7 +28,7 @@ ii. open your aws console:
 -   wait until the lab is ready
 -   click on `AWS Details`
 
-store your aws credentials from "AWS Details" in `~/.aws/credentials` or use `aws configure`:
+store your aws credentials from "AWS Details" in `~/.aws/credentials` or run `aws configure`:
 
 ```bash
 brew install awscli
