@@ -1,5 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
+from botocore import exceptions as botocore
+from botocore.response import StreamingBody
 import zipfile
 import json
 from pathlib import Path
@@ -50,8 +52,23 @@ def invoke_lambda_function(function_name):
     print(f"{Fore.GREEN}invoking lambda function {function_name}{Style.RESET_ALL}")
 
     client = boto3.client("lambda")
+
+    # invoke the lambda function with an empty event
     response = client.invoke(FunctionName=function_name)
-    print(response)
+
+    # check if response is serializable
+    if "Payload" in response and isinstance(response["Payload"], StreamingBody):
+        payload_content = response["Payload"].read().decode("utf-8")
+
+        print(json.dumps(payload_content, indent=2))
+
+        if "StatusCode" in response:
+            print(f"status code: {response['StatusCode']}")
+
+        if "FunctionError" in response:
+            print(f"function error: {response['FunctionError']}")
+    else:
+        print(json.dumps(response, indent=2))
 
 
 def list_lambda_functions():
@@ -68,7 +85,7 @@ def delete_lambda_function(function_name):
 
     client = boto3.client("lambda")
     response = client.delete_function(FunctionName=function_name)
-    print(response)
+    print(json.dumps(response, indent=2))
 
 
 if __name__ == "__main__":
@@ -88,7 +105,7 @@ if __name__ == "__main__":
     create_lambda_function(function_name, lambdazip)
     list_lambda_functions()
 
-    # invoke_lambda_function(function_name)
+    invoke_lambda_function(function_name)
 
     delete_lambda_function(function_name)
     list_lambda_functions()
