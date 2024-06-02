@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 import base64
 import cv2
 import numpy as np
@@ -6,9 +6,10 @@ import time
 import psutil
 import GPUtil
 from pathlib import Path
+import requests
+import pdb
 
 app = Flask(__name__)
-
 
 class ObjectDetection:
     def __init__(self):
@@ -17,12 +18,24 @@ class ObjectDetection:
         self.COCO_NAMES = Path.cwd() / "yolo_tiny_configs" / "coco.names"
 
         self.net = cv2.dnn.readNet(str(self.MODEL_WEIGHTS), str(self.MODEL_CONFIG))
+
+        # Check if CUDA is available and set the preferable backend and target
+        # Note: could not get the openCV running on CUDA
+        if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+            print("CUDA is available. Using GPU.")
+            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+        else:
+            print("CUDA is not available. Using CPU.")
+            self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_DEFAULT)
+            self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
         with open(self.COCO_NAMES, "r") as f:
             self.classes = [line.strip() for line in f.readlines()]
 
         self.output_layers = self.net.getUnconnectedOutLayersNames()
 
-    def detect_objects(self, image_data):
+    def detect_objects(self, image_data, confidence_threshold=0.5):
         # Convert to a numpy array and decode to an image
         nparr = np.frombuffer(image_data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -41,7 +54,7 @@ class ObjectDetection:
         class_ids = []
         confidences = []
         boxes = []
-
+    
         # Extract the bounding boxes, confidences, and class IDs
         for out in outs:
             for detection in out:
@@ -50,7 +63,7 @@ class ObjectDetection:
                 confidence = scores[class_id]
 
                 # filter out low confidence detections
-                if confidence > 0.5:
+                if confidence > confidence_threshold:
                     center_x = int(detection[0] * width)
                     center_y = int(detection[1] * height)
                     w = int(detection[2] * width)
@@ -63,33 +76,43 @@ class ObjectDetection:
                     confidences.append(float(confidence))
                     class_ids.append(class_id)
 
-        indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+        indexes = cv2.dnn.NMSBoxes(boxes, confidences, confidence_threshold, 0.4)
 
         detected_objects = []
         if len(indexes) > 0:
-            for i in indexes:
+            COLORS = np.random.randint(0, 255, size=(len(self.classes), 3))
+            for i in indexes.flatten():
                 label = str(self.classes[class_ids[i]])
-                
                 confidence = confidences[i]
-                threshold = 0.5
-                if confidence > threshold:
+                if confidence > confidence_threshold:
                     detected_objects.append({"label": label, "accuracy": confidence})
 
-        return detected_objects, inference_time
+                    (x, y) = (boxes[i][0], boxes[i][1])
+                    (w, h) = (boxes[i][2], boxes[i][3])
+                    color = COLORS[class_ids[i]].tolist()
+                    cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+                    text = "{}: {:.4f}".format(label, confidence)
+                    cv2.putText(img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
+        # Encode the image to return
+        _, img_encoded = cv2.imencode('.jpg', img)
+        img_base64 = base64.b64encode(img_encoded).decode('utf-8')
+
+        return detected_objects, inference_time, img_base64
 
 detector = ObjectDetection()
 
-
 @app.route("/api/object_detection", methods=["POST"])
 def object_detection():
-    data = request.get_json()
-    img_id = data["id"]  # return the UUID sent by the client as is
-    img_data = base64.b64decode(data["image_data"])  # decode base64 image data
-    detected_objects, inference_time = detector.detect_objects(img_data)
-
-    return jsonify({"id": img_id, "objects": detected_objects, "inference_time": inference_time})
-
+    try:
+        data = request.get_json()
+        img_id = data["id"]
+        img_data = base64.b64decode(data["image_data"])
+        confidence_threshold = data.get("confidence", 0.5)
+        detected_objects, inference_time, img_base64 = detector.detect_objects(img_data, confidence_threshold)
+        return jsonify({"id": img_id, "objects": detected_objects, "inference_time": inference_time, "image": img_base64})
+    except Exception as e:
+        return jsonify({"error": "An error occurred during object detection", "details": str(e)}), 500
 
 @app.route("/api/system_info", methods=["GET"])
 def system_info():
@@ -122,6 +145,57 @@ def system_info():
 
     return jsonify({"cpu_info": cpu_info, "gpu_info": gpu_info, "net_info": net_info})
 
+@app.route("/api/debug", methods=["GET"])
+def debug():
+    """
+    In order to debug the server side, you can use this endpoint to trigger a 
+    breakpoint in the server code by using pdb.set_trace() where you want to 
+    pause the execution and inspect the variables. 
+    To enable the debug mode just enter 
+    `http://127.0.0.1:5000/api/debug?image_path=data\input_folder\000000003111.jpg&confidence=0.2`
+    where you can add the image_path and the confidence level as query parameters. 
+    It also returns the image with the detected objects.
+    """
+    image_path_param = request.args.get('image_path')
+    confidence_param = request.args.get('confidence', default=0.3, type=float)
+    
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    image_path = BASE_DIR / image_path_param
+
+    try:
+        with open(image_path, 'rb') as image_file:
+            encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+        payload = {
+            "id": "unique_image_id",
+            "image_data": encoded_image,
+            "confidence": confidence_param
+        }
+
+        url = 'http://127.0.0.1:5000/api/object_detection'
+        response = requests.post(url, json=payload)
+
+        if response.status_code != 200:
+            return jsonify({"error": f"Request failed with status code {response.status_code}"}), response.status_code
+
+        print("Response Text:", response.text)
+
+        response_data = response.json()
+        img_base64 = response_data.get("image")
+
+        html_content = f"""
+        <html>
+        <body>
+            <h1>Object Detection Result</h1>
+            <img src="data:image/jpeg;base64,{img_base64}" alt="Detected Objects">
+        </body>
+        </html>
+        """
+        return render_template_string(html_content)
+    except FileNotFoundError:
+        return jsonify({"error": "File not found"}), 404
+    except requests.exceptions.JSONDecodeError as e:
+        return jsonify({"error": "Failed to decode JSON response", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)

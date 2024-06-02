@@ -24,7 +24,6 @@ def get_args():
         parser.error("Invalid endpoint URL")
     if not args.endpoint.startswith("http"):
         parser.error("Invalid endpoint URL. It should start with http")
-
     return args
 
 
@@ -48,16 +47,14 @@ if __name__ == "__main__":
             image_id = str(uuid.uuid4())
             image_data = encode_image(image_path)
             payload = {"id": image_id, "image_data": image_data}
-
             start_transfer_time = time.time()
             response = requests.post(f"{args.endpoint}/object_detection", json=payload)
             end_transfer_time = time.time()
             transfer_time = end_transfer_time - start_transfer_time
-
             assert response.status_code == 200, f"Status code: {response.status_code}"
             assert response.json()["id"] == image_id, f"Image ID mismatch for {image_id}"
 
-            response_data = response.json()
+            response_data = {key: value for key, value in response.json().items() if key != 'image'}
             print(json.dumps(response_data, indent=4))
 
             inference_time = response_data["inference_time"]
@@ -70,6 +67,7 @@ if __name__ == "__main__":
             print(f"Inference Time: {inference_time:.4f} seconds")
 
     print("\n\n**** Local Execution Summary ****")
+    print(f"Total Images Processed: {num_images}")
     print(f"Total Transfer Time: {total_transfer_time:.4f} seconds")
     if num_images > 0:
         avg_transfer_time = total_transfer_time / num_images
