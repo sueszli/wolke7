@@ -174,10 +174,10 @@ def assert_user_authenticated():
     assert sts.get_caller_identity(), "unable to authenticate"
 
     uid = sts.get_caller_identity()["Account"]
-    secret = boto3.session.Session().get_credentials().secret_key
-    access = boto3.session.Session().get_credentials().access_key
-    session = boto3.session.Session().get_credentials().token
-    region = boto3.session.Session().region_name
+    secret = boto3.session.Session().get_credentials().secret_key  # type: ignore
+    access = boto3.session.Session().get_credentials().access_key  # type: ignore
+    session = boto3.session.Session().get_credentials().token  # type: ignore
+    region = boto3.session.Session().region_name  # type: ignore
     assert uid and secret and access and session, "credentials must be set"
     assert region == "us-east-1", "region must be set to us-east-1"
     # print(f"credentials:\n\tacc id: {uid}\n\tsecret: {secret}\n\taccess: {access}\n\tsession: {session}\n\tnregion: {region}\n")
@@ -192,15 +192,7 @@ def assert_user_authenticated():
 
 def hook_lambda_to_s3(function_name, bucket_name):
     print(f"{Fore.GREEN}hooking lambda function {function_name} to bucket {bucket_name}{Style.RESET_ALL}")
-
-    client = boto3.client("s3")
-
-    def assert_exists(bucket_name):
-        response = client.list_buckets()
-        for bucket in response["Buckets"]:
-            if bucket_name == bucket["Name"]:
-                return
-        assert False, f"bucket {bucket_name} does not exist"
+    pass
 
 
 if __name__ == "__main__":
