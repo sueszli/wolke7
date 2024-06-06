@@ -43,6 +43,26 @@ def invoke_lambda_function(function_name):
 
     client = boto3.client("lambda")
 
+    def assert_exists(function_name):
+        existing_functions = client.list_functions()["Functions"]
+        for function in existing_functions:
+            if function_name == function["FunctionName"]:
+                return
+        assert False, f"lambda function {function_name} does not exist"
+
+    def wait_until_ready(function_name):
+        while True:
+            try:
+                response = client.get_function(FunctionName=function_name)
+                if response["Configuration"]["State"] == "Active":
+                    break
+                print(f"waiting for lambda function {function_name} to be ready")
+            except botocore.ClientError:
+                pass
+
+    assert_exists(function_name)
+    wait_until_ready(function_name)
+
     # invoke the lambda function with an empty event
     response = client.invoke(FunctionName=function_name)
 
@@ -91,7 +111,7 @@ if __name__ == "__main__":
         z.write(lambdapath, lambdapath.name)
     print(f"created lambda zip")
 
-    # create, invoke, list, and delete lambda function
+    # crud operations
     function_name = "wolke-sieben-lambda"
     create_lambda_function(function_name, lambdazip)
     list_lambda_functions()
@@ -101,7 +121,7 @@ if __name__ == "__main__":
     delete_lambda_function(function_name)
     list_lambda_functions()
 
-    # create lambda zip file
+    # delete lambda zip file
     if lambdazip.exists():
         lambdazip.unlink()
     print(f"deleted lambda zip")

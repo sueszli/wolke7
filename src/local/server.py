@@ -11,6 +11,7 @@ import pdb
 
 app = Flask(__name__)
 
+
 class ObjectDetection:
     def __init__(self):
         self.MODEL_CONFIG = Path.cwd() / "yolo_tiny_configs" / "yolov3-tiny.cfg"
@@ -54,7 +55,7 @@ class ObjectDetection:
         class_ids = []
         confidences = []
         boxes = []
-    
+
         # Extract the bounding boxes, confidences, and class IDs
         for out in outs:
             for detection in out:
@@ -95,12 +96,14 @@ class ObjectDetection:
                     cv2.putText(img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         # Encode the image to return
-        _, img_encoded = cv2.imencode('.jpg', img)
-        img_base64 = base64.b64encode(img_encoded).decode('utf-8')
+        _, img_encoded = cv2.imencode(".jpg", img)
+        img_base64 = base64.b64encode(img_encoded).decode("utf-8")
 
         return detected_objects, inference_time, img_base64
 
+
 detector = ObjectDetection()
+
 
 @app.route("/api/object_detection", methods=["POST"])
 def object_detection():
@@ -113,6 +116,7 @@ def object_detection():
         return jsonify({"id": img_id, "objects": detected_objects, "inference_time": inference_time, "image": img_base64})
     except Exception as e:
         return jsonify({"error": "An error occurred during object detection", "details": str(e)}), 500
+
 
 @app.route("/api/system_info", methods=["GET"])
 def system_info():
@@ -145,34 +149,31 @@ def system_info():
 
     return jsonify({"cpu_info": cpu_info, "gpu_info": gpu_info, "net_info": net_info})
 
+
 @app.route("/api/debug", methods=["GET"])
 def debug():
     """
-    In order to debug the server side, you can use this endpoint to trigger a 
-    breakpoint in the server code by using pdb.set_trace() where you want to 
-    pause the execution and inspect the variables. 
-    To enable the debug mode just enter 
+    In order to debug the server side, you can use this endpoint to trigger a
+    breakpoint in the server code by using pdb.set_trace() where you want to
+    pause the execution and inspect the variables.
+    To enable the debug mode just enter
     `http://127.0.0.1:5000/api/debug?image_path=data\input_folder\000000003111.jpg&confidence=0.2`
-    where you can add the image_path and the confidence level as query parameters. 
+    where you can add the image_path and the confidence level as query parameters.
     It also returns the image with the detected objects.
     """
-    image_path_param = request.args.get('image_path')
-    confidence_param = request.args.get('confidence', default=0.3, type=float)
-    
+    image_path_param = request.args.get("image_path")
+    confidence_param = request.args.get("confidence", default=0.3, type=float)
+
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     image_path = BASE_DIR / image_path_param
 
     try:
-        with open(image_path, 'rb') as image_file:
-            encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+        with open(image_path, "rb") as image_file:
+            encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-        payload = {
-            "id": "unique_image_id",
-            "image_data": encoded_image,
-            "confidence": confidence_param
-        }
+        payload = {"id": "unique_image_id", "image_data": encoded_image, "confidence": confidence_param}
 
-        url = 'http://127.0.0.1:5000/api/object_detection'
+        url = "http://127.0.0.1:5000/api/object_detection"
         response = requests.post(url, json=payload)
 
         if response.status_code != 200:
@@ -196,6 +197,7 @@ def debug():
         return jsonify({"error": "File not found"}), 404
     except requests.exceptions.JSONDecodeError as e:
         return jsonify({"error": "Failed to decode JSON response", "details": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
