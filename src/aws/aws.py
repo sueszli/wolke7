@@ -26,6 +26,8 @@ class LambdaClient:
         print(f"{Fore.GREEN}listing lambda functions{Style.RESET_ALL}")
 
         response = LambdaClient.c.list_functions()
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
         for function in response["Functions"]:
             print(f"\t{function['FunctionName']}")
 
@@ -60,9 +62,9 @@ class LambdaClient:
                 Handler="lambda_function.main",
                 Code={"ZipFile": f.read()},
             )
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         print(json.dumps(response, indent=2))
 
-        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         assert LambdaClient.lambda_exists(function_name)
 
     @staticmethod
@@ -72,10 +74,8 @@ class LambdaClient:
         assert file_path.exists()
 
         response = LambdaClient.c.delete_function(FunctionName=function_name)
-        print(json.dumps(response, indent=2))
-
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-        assert not LambdaClient.lambda_exists(function_name)
+        print(json.dumps(response, indent=2))
 
         def delete_zip(file_path):
             zip_file_path = file_path.with_suffix(".zip")
@@ -84,6 +84,9 @@ class LambdaClient:
             print(f"deleted lambda zip")
 
         delete_zip(file_path)
+
+        assert not LambdaClient.lambda_exists(function_name)
+        assert not file_path.with_suffix(".zip").exists()
 
     @staticmethod
     def invoke_lambda(function_name: str) -> None:
@@ -102,7 +105,6 @@ class LambdaClient:
 
         wait_until_ready(function_name)
 
-        # todo: update this
         payload = {"hello": "world"}
         response = LambdaClient.c.invoke(FunctionName=function_name, Payload=json.dumps(payload))
 
@@ -116,6 +118,8 @@ class S3Client:
     @staticmethod
     def bucket_exists(bucket_name: str) -> bool:
         response = S3Client.c.list_buckets()
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
         for bucket in response["Buckets"]:
             if bucket["Name"] == bucket_name:
                 return True
@@ -126,6 +130,8 @@ class S3Client:
         print(f"{Fore.GREEN}listing bucket content{Style.RESET_ALL}")
 
         response = S3Client.c.list_buckets()
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
         if len(response["Buckets"]) == 0:
             print("no buckets")
             return
@@ -153,10 +159,7 @@ class S3Client:
         assert S3Client.bucket_exists(bucket_name)
         assert file_path.exists()
 
-        num_before = len(S3Client.c.list_objects_v2(Bucket=bucket_name)["Contents"])
         S3Client.c.upload_file(str(file_path), bucket_name, file_path.name)
-        num_after = len(S3Client.c.list_objects_v2(Bucket=bucket_name)["Contents"])
-        assert num_after == num_before + 1
 
     @staticmethod
     def upload_folder(bucket_name: str, folder_path: Path) -> None:
@@ -178,6 +181,7 @@ class S3Client:
             S3Client.c.delete_objects(Bucket=bucket_name, Delete={"Objects": [{"Key": obj["Key"]} for obj in response["Contents"]]})
         S3Client.c.delete_bucket(Bucket=bucket_name)
 
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         assert not S3Client.bucket_exists(bucket_name)
 
 
@@ -202,7 +206,7 @@ def assert_user_authenticated():
         exit(1)
 
 
-def hook_lambda_to_s3(function_name, bucket_name):
+def hook_lambda_to_s3(function_name: str, bucket_name: str) -> None:
     print(f"{Fore.GREEN}hooking lambda function {function_name} to bucket {bucket_name}{Style.RESET_ALL}")
     pass
 
