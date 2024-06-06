@@ -22,6 +22,14 @@ class LambdaClient:
         return False
 
     @staticmethod
+    def list_lambdas():
+        print(f"{Fore.GREEN}listing lambda functions{Style.RESET_ALL}")
+
+        response = LambdaClient.c.list_functions()
+        for function in response["Functions"]:
+            print(f"\t{function['FunctionName']}")
+
+    @staticmethod
     def create_lambda(function_name: str, file_path: Path) -> None:
         print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
         assert not LambdaClient.lambda_exists(function_name)
@@ -54,8 +62,31 @@ class LambdaClient:
             )
         print(json.dumps(response, indent=2))
 
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        assert LambdaClient.lambda_exists(function_name)
+
     @staticmethod
-    def invoke_lambda(function_name):
+    def delete_lambda(function_name: str, file_path: Path) -> None:
+        print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
+        assert LambdaClient.lambda_exists(function_name)
+        assert file_path.exists()
+
+        response = LambdaClient.c.delete_function(FunctionName=function_name)
+        print(json.dumps(response, indent=2))
+
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        assert not LambdaClient.lambda_exists(function_name)
+
+        def delete_zip(file_path):
+            zip_file_path = file_path.with_suffix(".zip")
+            assert zip_file_path.exists(), f"zip file {zip_file_path} does not exist"
+            zip_file_path.unlink()
+            print(f"deleted lambda zip")
+
+        delete_zip(file_path)
+
+    @staticmethod
+    def invoke_lambda(function_name: str) -> None:
         print(f"{Fore.GREEN}invoking lambda function {function_name}{Style.RESET_ALL}")
         assert LambdaClient.lambda_exists(function_name)
 
@@ -78,31 +109,6 @@ class LambdaClient:
         decoded_response = json.loads(response["Payload"].read().decode("utf-8"))
         print(json.dumps(decoded_response, indent=2))
 
-    @staticmethod
-    def list_lambdas():
-        print(f"{Fore.GREEN}listing lambda functions{Style.RESET_ALL}")
-
-        response = LambdaClient.c.list_functions()
-        for function in response["Functions"]:
-            print(f"\t{function['FunctionName']}")
-
-    @staticmethod
-    def delete_lambda(function_name, file_path):
-        print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
-        assert LambdaClient.lambda_exists(function_name)
-        assert file_path.exists()
-
-        response = LambdaClient.c.delete_function(FunctionName=function_name)
-        print(json.dumps(response, indent=2))
-
-        def delete_zip(file_path):
-            zip_file_path = file_path.with_suffix(".zip")
-            assert zip_file_path.exists(), f"zip file {zip_file_path} does not exist"
-            zip_file_path.unlink()
-            print(f"deleted lambda zip")
-
-        delete_zip(file_path)
-
 
 class S3Client:
     c = boto3.client("s3")
@@ -114,14 +120,6 @@ class S3Client:
             if bucket["Name"] == bucket_name:
                 return True
         return False
-
-    @staticmethod
-    def create_bucket(bucket_name: str) -> None:
-        print(f"{Fore.GREEN}creating bucket {bucket_name}{Style.RESET_ALL}")
-        assert not S3Client.bucket_exists(bucket_name)
-
-        S3Client.c.create_bucket(Bucket=bucket_name)
-        print(f"created bucket {bucket_name}")
 
     @staticmethod
     def list_buckets() -> None:
@@ -141,12 +139,24 @@ class S3Client:
                 print("\tempty")
 
     @staticmethod
+    def create_bucket(bucket_name: str) -> None:
+        print(f"{Fore.GREEN}creating bucket {bucket_name}{Style.RESET_ALL}")
+        assert not S3Client.bucket_exists(bucket_name)
+
+        S3Client.c.create_bucket(Bucket=bucket_name)
+
+        assert S3Client.bucket_exists(bucket_name)
+
+    @staticmethod
     def upload_file(bucket_name: str, file_path: Path) -> None:
         print(f"{Fore.GREEN}uploading file {file_path} to bucket {bucket_name}{Style.RESET_ALL}")
         assert S3Client.bucket_exists(bucket_name)
         assert file_path.exists()
 
+        num_before = len(S3Client.c.list_objects_v2(Bucket=bucket_name)["Contents"])
         S3Client.c.upload_file(str(file_path), bucket_name, file_path.name)
+        num_after = len(S3Client.c.list_objects_v2(Bucket=bucket_name)["Contents"])
+        assert num_after == num_before + 1
 
     @staticmethod
     def upload_folder(bucket_name: str, folder_path: Path) -> None:
@@ -167,6 +177,8 @@ class S3Client:
         if response["KeyCount"] > 0:
             S3Client.c.delete_objects(Bucket=bucket_name, Delete={"Objects": [{"Key": obj["Key"]} for obj in response["Contents"]]})
         S3Client.c.delete_bucket(Bucket=bucket_name)
+
+        assert not S3Client.bucket_exists(bucket_name)
 
 
 def assert_user_authenticated():
@@ -198,49 +210,23 @@ def hook_lambda_to_s3(function_name, bucket_name):
 if __name__ == "__main__":
     assert_user_authenticated()
 
-    def demo_lambda():
-        function_name = "wolke-sieben-lambda"
-        file_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
-        LambdaClient.create_lambda(function_name, file_path)
-        LambdaClient.list_lambdas()
-
-        LambdaClient.invoke_lambda(function_name)
-
-        LambdaClient.delete_lambda(function_name, file_path)
-        LambdaClient.list_lambdas()
-
-    def demo_s3():
-        bucket_name = "wolke-sieben-bucket"
-
-        S3Client.create_bucket(bucket_name)
-        S3Client.list_buckets()
-
-        datapath = Path.cwd() / "data" / "input_folder"
-        S3Client.upload_folder(bucket_name, datapath)
-        S3Client.list_buckets()
-
-        S3Client.delete_bucket(bucket_name)
-        S3Client.list_buckets()
-
-    # 1. create bucket
-    bucket_name = "wolke-sieben-bucket"
-    S3Client.create_bucket(bucket_name)
-    assert S3Client.bucket_exists(bucket_name)
-
-    # 2. create lambda function
     function_name = "wolke-sieben-lambda"
-    file_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
-    LambdaClient.create_lambda(function_name, file_path)
-    assert LambdaClient.lambda_exists(function_name)
+    lambdapath = Path.cwd() / "src" / "aws" / "lambda_function.py"
 
-    # 3. hook up lambda function to s3 bucket
+    bucket_name = "wolke-sieben-bucket"
+    datapath = Path.cwd() / "data" / "input_folder"
 
-    # 4. upload file to s3 bucket and trigger lambda function
+    # create resources
+    S3Client.create_bucket(bucket_name)
+    LambdaClient.create_lambda(function_name, lambdapath)
 
-    # 5. delete bucket
+    # hook lambda to s3
+    hook_lambda_to_s3(function_name, bucket_name)
+
+    # trigger lambda
+    random_file = next(datapath.rglob("*"))
+    S3Client.upload_file(bucket_name, random_file)
+
+    # delete resources
     S3Client.delete_bucket(bucket_name)
-    assert not S3Client.bucket_exists(bucket_name)
-
-    # 6. delete lambda function
-    LambdaClient.delete_lambda(function_name, file_path)
-    assert not LambdaClient.lambda_exists(function_name)
+    LambdaClient.delete_lambda(function_name, lambdapath)
