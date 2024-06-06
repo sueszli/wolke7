@@ -6,25 +6,13 @@ import boto3
 import datetime
 import json
 
+TABLE_NAME = "wolke-sieben-table"
+
 
 def main(args, context) -> dict:
-    assert args.get("table_name")
-    table_name = args["table_name"]
-    dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(table_name)
 
-    # write arbitrary data to DynamoDB
-    response = table.put_item(
-        Item={
-            "id": "1",
-            "hello": "world",
-            "timestamp": datetime.datetime.now().isoformat(),
-        }
-    )
-    assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-
-    return {
-        # echo input args for debugging
+    output = {
+        # useful for debugging
         # see: https://docs.aws.amazon.com/lambda/latest/dg/python-context.html
         "args": dict(args),
         "context": {
@@ -36,3 +24,17 @@ def main(args, context) -> dict:
             "log_group_name": context.log_group_name,
         },
     }
+
+    # write output to dynamodb
+    dynamodb = boto3.resource("dynamodb")
+    table = dynamodb.Table(TABLE_NAME)
+    res = table.put_item(
+        Item={
+            "timestamp": datetime.datetime.now().isoformat(),
+            **output,
+        }
+    )
+    assert res["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+    # return output as json
+    return output
