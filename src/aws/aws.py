@@ -5,6 +5,7 @@ from botocore.response import StreamingBody
 
 import zipfile
 import json
+import time
 from pathlib import Path
 from tqdm import tqdm
 from colorama import Fore, Style
@@ -53,6 +54,26 @@ class LambdaClient:
             print(f"\t{function['FunctionName']}")
 
     @staticmethod
+    def delete_lambda(function_name: str, file_path: Path) -> None:
+        print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
+        assert LambdaClient.lambda_exists(function_name)
+        assert file_path.exists()
+
+        response = LambdaClient.c.delete_function(FunctionName=function_name)
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+        def delete_zip(file_path):
+            zip_file_path = file_path.with_suffix(".zip")
+            assert zip_file_path.exists(), f"zip file {zip_file_path} does not exist"
+            zip_file_path.unlink()
+            print(f"deleted lambda zip")
+
+        delete_zip(file_path)
+
+        assert not LambdaClient.lambda_exists(function_name)
+        assert not file_path.with_suffix(".zip").exists()
+
+    @staticmethod
     def create_lambda(function_name: str, file_path: Path) -> None:
         print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
         assert file_path.exists()
@@ -91,26 +112,6 @@ class LambdaClient:
         print(json.dumps(response, indent=2))
 
         assert LambdaClient.lambda_exists(function_name)
-
-    @staticmethod
-    def delete_lambda(function_name: str, file_path: Path) -> None:
-        print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
-        assert LambdaClient.lambda_exists(function_name)
-        assert file_path.exists()
-
-        response = LambdaClient.c.delete_function(FunctionName=function_name)
-        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-
-        def delete_zip(file_path):
-            zip_file_path = file_path.with_suffix(".zip")
-            assert zip_file_path.exists(), f"zip file {zip_file_path} does not exist"
-            zip_file_path.unlink()
-            print(f"deleted lambda zip")
-
-        delete_zip(file_path)
-
-        assert not LambdaClient.lambda_exists(function_name)
-        assert not file_path.with_suffix(".zip").exists()
 
     @staticmethod
     def invoke_lambda(function_name: str) -> None:
@@ -170,6 +171,19 @@ class S3Client:
                 print("\tempty")
 
     @staticmethod
+    def delete_bucket(bucket_name: str) -> None:
+        print(f"{Fore.GREEN}deleting bucket {bucket_name}{Style.RESET_ALL}")
+        assert S3Client.bucket_exists(bucket_name)
+
+        response = S3Client.c.list_objects_v2(Bucket=bucket_name)
+        if response["KeyCount"] > 0:
+            S3Client.c.delete_objects(Bucket=bucket_name, Delete={"Objects": [{"Key": obj["Key"]} for obj in response["Contents"]]})
+        S3Client.c.delete_bucket(Bucket=bucket_name)
+
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        assert not S3Client.bucket_exists(bucket_name)
+
+    @staticmethod
     def create_bucket(bucket_name: str) -> None:
         print(f"{Fore.GREEN}creating bucket {bucket_name}{Style.RESET_ALL}")
 
@@ -201,19 +215,6 @@ class S3Client:
                 upload_path = file_path.relative_to(folder_path)
                 S3Client.c.upload_file(str(file_path), bucket_name, str(upload_path))
 
-    @staticmethod
-    def delete_bucket(bucket_name: str) -> None:
-        print(f"{Fore.GREEN}deleting bucket {bucket_name}{Style.RESET_ALL}")
-        assert S3Client.bucket_exists(bucket_name)
-
-        response = S3Client.c.list_objects_v2(Bucket=bucket_name)
-        if response["KeyCount"] > 0:
-            S3Client.c.delete_objects(Bucket=bucket_name, Delete={"Objects": [{"Key": obj["Key"]} for obj in response["Contents"]]})
-        S3Client.c.delete_bucket(Bucket=bucket_name)
-
-        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-        assert not S3Client.bucket_exists(bucket_name)
-
 
 class DynamoDBClient:
     c = boto3.client("dynamodb")
@@ -241,31 +242,12 @@ class DynamoDBClient:
         for table in response["TableNames"]:
             print(table)
 
-    # @staticmethod
-    # def create_table(table_name: str, schema: dict) -> None:
-    #     print(f"{Fore.GREEN}creating table {table_name}{Style.RESET_ALL}")
-
-    #     if DynamoDBClient.table_exists(table_name):
-    #         print(f"table {table_name} already exists, deleting first")
-    #         DynamoDBClient.delete_table(table_name)
-    #         print(f"deleted existing table - back to creating")
-
-    #     response = DynamoDBClient.c.create_table(
-    #         TableName=table_name,
-    #         KeySchema=[{"AttributeName": key, "KeyType": "HASH"} for key in schema],
-    #         AttributeDefinitions=[{"AttributeName": key, "AttributeType": schema[key]} for key in schema],
-    #         ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
-    #     )
-    #     decoded_response = json.loads(response)
-    #     print(json.dumps(decoded_response, indent=2))
-
-    #     assert DynamoDBClient.table_exists(table_name)
-
     @staticmethod
     def delete_table(table_name: str) -> None:
         print(f"{Fore.GREEN}deleting table {table_name}{Style.RESET_ALL}")
         assert DynamoDBClient.table_exists(table_name)
 
+        # wait for users to stop using table
         while True:
             try:
                 response = DynamoDBClient.c.delete_table(TableName=table_name)
@@ -274,6 +256,40 @@ class DynamoDBClient:
                 pass
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         print(json.dumps(response, indent=2))
+
+        # wait for table to be deleted
+        max_wait = 5
+        for _ in range(max_wait):
+            if not DynamoDBClient.table_exists(table_name):
+                break
+            time.sleep(1)
+        assert not DynamoDBClient.table_exists(table_name)
+
+    @staticmethod
+    def create_table(table_name: str) -> None:
+        print(f"{Fore.GREEN}creating table {table_name}{Style.RESET_ALL}")
+
+        if DynamoDBClient.table_exists(table_name):
+            print(f"table {table_name} already exists, deleting first")
+            DynamoDBClient.delete_table(table_name)
+            print(f"deleted existing table - back to creating")
+
+        args = {
+            "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+            "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+            "ProvisionedThroughput": {"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
+        }
+        response = DynamoDBClient.c.create_table(TableName=table_name, **args)
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+        # wait for status to change to active
+        while True:
+            response = DynamoDBClient.c.describe_table(TableName=table_name)
+            if response["Table"]["TableStatus"] == "ACTIVE":
+                break
+            time.sleep(1)
+        print(response)
+        assert DynamoDBClient.table_exists(table_name)
 
 
 # def hook_lambda_to_s3(function_name: str, bucket_name: str) -> None:
@@ -340,16 +356,4 @@ if __name__ == "__main__":
     assert_user_authenticated()
 
     table_name = "wolke-sieben-table"
-    client = boto3.client("dynamodb")
-
-    if DynamoDBClient.table_exists(table_name):
-        DynamoDBClient.delete_table(table_name)
-
-    # print("creating table")
-    # table_config = {
-    #     "TableName": table_name,
-    #     "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
-    #     "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
-    #     "ProvisionedThroughput": {"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
-    # }
-    # response = client.create_table(**table_config)
+    DynamoDBClient.create_table(table_name)
