@@ -44,10 +44,10 @@ class LambdaClient:
     c = boto3.client("lambda")
 
     @staticmethod
-    def lambda_exists(function_name: str) -> bool:
+    def lambda_exists(lambda_name: str) -> bool:
         existing_functions = LambdaClient.c.list_functions()["Functions"]
         for function in existing_functions:
-            if function_name == function["FunctionName"]:
+            if lambda_name == function["FunctionName"]:
                 return True
         return False
 
@@ -62,12 +62,12 @@ class LambdaClient:
             print(f"\t{function['FunctionName']}")
 
     @staticmethod
-    def delete_lambda(function_name: str, file_path: Path) -> None:
-        print(f"{Fore.GREEN}deleting lambda function {function_name}{Style.RESET_ALL}")
-        assert LambdaClient.lambda_exists(function_name)
+    def delete_lambda(lambda_name: str, file_path: Path) -> None:
+        print(f"{Fore.GREEN}deleting lambda function {lambda_name}{Style.RESET_ALL}")
+        assert LambdaClient.lambda_exists(lambda_name)
         assert file_path.exists()
 
-        response = LambdaClient.c.delete_function(FunctionName=function_name)
+        response = LambdaClient.c.delete_function(FunctionName=lambda_name)
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
 
         def delete_zip(file_path):
@@ -78,19 +78,19 @@ class LambdaClient:
 
         delete_zip(file_path)
 
-        assert not LambdaClient.lambda_exists(function_name)
+        assert not LambdaClient.lambda_exists(lambda_name)
         assert not file_path.with_suffix(".zip").exists()
 
     @staticmethod
-    def create_lambda(function_name: str, file_path: Path) -> None:
-        print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
+    def create_lambda(lambda_name: str, file_path: Path) -> None:
+        print(f"{Fore.GREEN}creating lambda function {lambda_name}{Style.RESET_ALL}")
         assert file_path.exists()
         assert file_path.suffix == ".py"
         assert file_path.stat().st_size > 0
 
-        if LambdaClient.lambda_exists(function_name):
-            print(f"lambda function {function_name} already exists, deleting first")
-            LambdaClient.delete_lambda(function_name, file_path)
+        if LambdaClient.lambda_exists(lambda_name):
+            print(f"lambda function {lambda_name} already exists, deleting first")
+            LambdaClient.delete_lambda(lambda_name, file_path)
             print(f"deleted existing lambda function - back to creating")
 
         def zip_file(file_path: Path) -> Path:
@@ -110,7 +110,7 @@ class LambdaClient:
             accountid = boto3.client("sts").get_caller_identity()["Account"]
             role = "LabRole"
             response = LambdaClient.c.create_function(
-                FunctionName=function_name,
+                FunctionName=lambda_name,
                 Runtime="python3.8",
                 Role=f"arn:aws:iam::{accountid}:role/{role}",
                 Handler="lambda_function.main",
@@ -119,28 +119,28 @@ class LambdaClient:
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         print(json.dumps(response, indent=2))
 
-        assert LambdaClient.lambda_exists(function_name)
+        assert LambdaClient.lambda_exists(lambda_name)
 
     @staticmethod
-    def invoke_lambda(function_name: str) -> None:
-        print(f"{Fore.GREEN}invoking lambda function {function_name}{Style.RESET_ALL}")
-        assert LambdaClient.lambda_exists(function_name)
+    def invoke_lambda(lambda_name: str) -> None:
+        print(f"{Fore.GREEN}invoking lambda function {lambda_name}{Style.RESET_ALL}")
+        assert LambdaClient.lambda_exists(lambda_name)
 
-        def wait_until_ready(function_name):
+        def wait_until_ready(lambda_name):
             while True:
                 try:
-                    response = LambdaClient.c.get_function(FunctionName=function_name)
+                    response = LambdaClient.c.get_function(FunctionName=lambda_name)
                     if response["Configuration"]["State"] == "Active":
                         break
-                    print(f"waiting for lambda function {function_name} to be ready")
+                    print(f"waiting for lambda function {lambda_name} to be ready")
                 except botocore.ClientError:
                     pass
 
-        wait_until_ready(function_name)
+        wait_until_ready(lambda_name)
 
         # TODO: customize payload
         payload = {"hello": "world"}
-        response = LambdaClient.c.invoke(FunctionName=function_name, Payload=json.dumps(payload))
+        response = LambdaClient.c.invoke(FunctionName=lambda_name, Payload=json.dumps(payload))
 
         decoded_response = json.loads(response["Payload"].read().decode("utf-8"))
         print(json.dumps(decoded_response, indent=2))
@@ -301,68 +301,80 @@ class DynamoDBClient:
         assert DynamoDBClient.table_exists(table_name)
 
 
-# def hook_lambda_to_s3(function_name: str, bucket_name: str) -> None:
-#     print(f"{Fore.GREEN}hooking lambda function {function_name} to bucket {bucket_name}{Style.RESET_ALL}")
+def hook_lambda_to_s3(lambda_name: str, bucket_name: str) -> None:
+    print(f"{Fore.GREEN}hooking lambda function {lambda_name} to bucket {bucket_name}{Style.RESET_ALL}")
 
-#     lambda_client = boto3.client("lambda")
-#     s3_client = boto3.client("s3")
-#     account_id = boto3.client("sts").get_caller_identity()["Account"]
+    lambda_client = boto3.client("lambda")
+    s3_client = boto3.client("s3")
+    account_id = boto3.client("sts").get_caller_identity()["Account"]
 
-#     lambda_client.add_permission(
-#         FunctionName=function_name,
-#         StatementId="s3-invoke-lambda-statement",
-#         Action="lambda:InvokeFunction",
-#         Principal="s3.amazonaws.com",
-#         SourceArn=f"arn:aws:s3:::{bucket_name}",
-#     )
+    lambda_client.add_permission(
+        FunctionName=lambda_name,
+        StatementId="s3-invoke-lambda-statement",
+        Action="lambda:InvokeFunction",
+        Principal="s3.amazonaws.com",
+        SourceArn=f"arn:aws:s3:::{bucket_name}",
+    )
 
-#     region = boto3.session.Session().region_name  # type: ignore
-#     s3_client.put_bucket_notification_configuration(
-#         Bucket=bucket_name,
-#         NotificationConfiguration={
-#             "LambdaFunctionConfigurations": [
-#                 {
-#                     "LambdaFunctionArn": f"arn:aws:lambda:{region}:{account_id}:function:{function_name}",
-#                     "Events": ["s3:ObjectCreated:*"],
-#                 }
-#             ]
-#         },
-#     )
+    region = boto3.session.Session().region_name  # type: ignore
+    s3_client.put_bucket_notification_configuration(
+        Bucket=bucket_name,
+        NotificationConfiguration={
+            "LambdaFunctionConfigurations": [
+                {
+                    "LambdaFunctionArn": f"arn:aws:lambda:{region}:{account_id}:function:{lambda_name}",
+                    "Events": ["s3:ObjectCreated:*"],
+                }
+            ]
+        },
+    )
 
-#     # check if lambda is hooked to s3
-#     response = s3_client.get_bucket_notification_configuration(Bucket=bucket_name)
-#     print(json.dumps(response, indent=2))
-#     assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+    response = s3_client.get_bucket_notification_configuration(Bucket=bucket_name)
+    print(json.dumps(response, indent=2))
+    assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
 
 
 # if __name__ == "__main__":
 #     assert_user_authenticated()
 
-#     function_name = "wolke-sieben-lambda"
-#     lambdapath = Path.cwd() / "src" / "aws" / "lambda_function.py"
+#     lambda_name = "wolke-sieben-lambda"
+#     lambda_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
 
 #     bucket_name = "wolke-sieben-bucket"
-#     datapath = Path.cwd() / "data" / "input_folder"
+#     data_path = Path.cwd() / "data" / "input_folder"
 
-#     # create resources
+#     table_name = "wolke-sieben-table"
+
+#     # create services
+#     LambdaClient.create_lambda(lambda_name, lambda_path)
 #     S3Client.create_bucket(bucket_name)
-#     LambdaClient.create_lambda(function_name, lambdapath)
+#     DynamoDBClient.create_table(table_name)
 
-#     # invoke lambda, write output to dynamoDB
+#     # list services
+#     LambdaClient.list_lambdas()
+#     S3Client.list_buckets()
+#     DynamoDBClient.list_tables()
 
 #     # hook lambda to s3
-#     # hook_lambda_to_s3(function_name, bucket_name)
+#     # hook lambda to dynamodb
+#     # invoke and test whether results are stored in dynamodb
 
-#     # trigger lambda
-#     random_file = next(datapath.rglob("*"))
-#     S3Client.upload_file(bucket_name, random_file)
+#     #     # trigger lambda
+#     #     random_file = next(datapath.rglob("*"))
+#     #     S3Client.upload_file(bucket_name, random_file)
 
-#     # delete resources
+#     # delete services
+#     DynamoDBClient.delete_table(table_name)
 #     S3Client.delete_bucket(bucket_name)
-#     LambdaClient.delete_lambda(function_name, lambdapath)
+#     LambdaClient.delete_lambda(lambda_name, lambda_path)
+
 
 if __name__ == "__main__":
     assert_user_authenticated()
 
     table_name = "wolke-sieben-table"
     DynamoDBClient.create_table(table_name)
+
+    DynamoDBClient.list_tables()
+
+    DynamoDBClient.delete_table(table_name)
