@@ -34,10 +34,14 @@ class LambdaClient:
     @staticmethod
     def create_lambda(function_name: str, file_path: Path) -> None:
         print(f"{Fore.GREEN}creating lambda function {function_name}{Style.RESET_ALL}")
-        assert not LambdaClient.lambda_exists(function_name)
         assert file_path.exists()
         assert file_path.suffix == ".py"
         assert file_path.stat().st_size > 0
+
+        if LambdaClient.lambda_exists(function_name):
+            print(f"lambda function {function_name} already exists, deleting first")
+            LambdaClient.delete_lambda(function_name, file_path)
+            print(f"deleted existing lambda function - back to creating")
 
         def zip_file(file_path: Path) -> Path:
             zip_file_path = file_path.with_suffix(".zip")
@@ -75,7 +79,6 @@ class LambdaClient:
 
         response = LambdaClient.c.delete_function(FunctionName=function_name)
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-        print(json.dumps(response, indent=2))
 
         def delete_zip(file_path):
             zip_file_path = file_path.with_suffix(".zip")
@@ -105,6 +108,7 @@ class LambdaClient:
 
         wait_until_ready(function_name)
 
+        # TODO: customize payload
         payload = {"hello": "world"}
         response = LambdaClient.c.invoke(FunctionName=function_name, Payload=json.dumps(payload))
 
@@ -147,9 +151,14 @@ class S3Client:
     @staticmethod
     def create_bucket(bucket_name: str) -> None:
         print(f"{Fore.GREEN}creating bucket {bucket_name}{Style.RESET_ALL}")
-        assert not S3Client.bucket_exists(bucket_name)
 
-        S3Client.c.create_bucket(Bucket=bucket_name)
+        if S3Client.bucket_exists(bucket_name):
+            print(f"bucket {bucket_name} already exists, deleting first")
+            S3Client.delete_bucket(bucket_name)
+            print(f"deleted existing bucket - back to creating")
+
+        response = S3Client.c.create_bucket(Bucket=bucket_name)
+        print(json.dumps(response, indent=2))
 
         assert S3Client.bucket_exists(bucket_name)
 
@@ -185,6 +194,65 @@ class S3Client:
         assert not S3Client.bucket_exists(bucket_name)
 
 
+class DynamoDBClient:
+    c = boto3.client("dynamodb")
+
+    @staticmethod
+    def table_exists(table_name: str) -> bool:
+        response = DynamoDBClient.c.list_tables()
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+        for table in response["TableNames"]:
+            if table == table_name:
+                return True
+        return False
+
+    @staticmethod
+    def list_tables() -> None:
+        print(f"{Fore.GREEN}listing tables{Style.RESET_ALL}")
+
+        response = DynamoDBClient.c.list_tables()
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+        if len(response["TableNames"]) == 0:
+            print("no tables")
+            return
+        for table in response["TableNames"]:
+            print(table)
+            for item in DynamoDBClient.c.scan(TableName=table)["Items"]:
+                print(f"\t{item}")
+
+    @staticmethod
+    def create_table(table_name: str, schema: dict) -> None:
+        print(f"{Fore.GREEN}creating table {table_name}{Style.RESET_ALL}")
+
+        if DynamoDBClient.table_exists(table_name):
+            print(f"table {table_name} already exists, deleting first")
+            DynamoDBClient.delete_table(table_name)
+            print(f"deleted existing table - back to creating")
+
+        response = DynamoDBClient.c.create_table(
+            TableName=table_name,
+            KeySchema=[{"AttributeName": key, "KeyType": "HASH"} for key in schema],
+            AttributeDefinitions=[{"AttributeName": key, "AttributeType": schema[key]} for key in schema],
+            ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
+        )
+        decoded_response = json.loads(response)
+        print(json.dumps(decoded_response, indent=2))
+
+        assert DynamoDBClient.table_exists(table_name)
+
+    @staticmethod
+    def delete_table(table_name: str) -> None:
+        print(f"{Fore.GREEN}deleting table {table_name}{Style.RESET_ALL}")
+        assert DynamoDBClient.table_exists(table_name)
+
+        response = DynamoDBClient.c.delete_table(TableName=table_name)
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+        assert not DynamoDBClient.table_exists(table_name)
+
+
 def assert_user_authenticated():
     sts = boto3.client("sts")
     assert sts.get_caller_identity(), "unable to authenticate"
@@ -206,31 +274,73 @@ def assert_user_authenticated():
         exit(1)
 
 
-def hook_lambda_to_s3(function_name: str, bucket_name: str) -> None:
-    print(f"{Fore.GREEN}hooking lambda function {function_name} to bucket {bucket_name}{Style.RESET_ALL}")
-    pass
+# def hook_lambda_to_s3(function_name: str, bucket_name: str) -> None:
+#     print(f"{Fore.GREEN}hooking lambda function {function_name} to bucket {bucket_name}{Style.RESET_ALL}")
 
+#     lambda_client = boto3.client("lambda")
+#     s3_client = boto3.client("s3")
+#     account_id = boto3.client("sts").get_caller_identity()["Account"]
+
+#     lambda_client.add_permission(
+#         FunctionName=function_name,
+#         StatementId="s3-invoke-lambda-statement",
+#         Action="lambda:InvokeFunction",
+#         Principal="s3.amazonaws.com",
+#         SourceArn=f"arn:aws:s3:::{bucket_name}",
+#     )
+
+#     region = boto3.session.Session().region_name  # type: ignore
+#     s3_client.put_bucket_notification_configuration(
+#         Bucket=bucket_name,
+#         NotificationConfiguration={
+#             "LambdaFunctionConfigurations": [
+#                 {
+#                     "LambdaFunctionArn": f"arn:aws:lambda:{region}:{account_id}:function:{function_name}",
+#                     "Events": ["s3:ObjectCreated:*"],
+#                 }
+#             ]
+#         },
+#     )
+
+#     # check if lambda is hooked to s3
+#     response = s3_client.get_bucket_notification_configuration(Bucket=bucket_name)
+#     print(json.dumps(response, indent=2))
+#     assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+
+# if __name__ == "__main__":
+#     assert_user_authenticated()
+
+#     function_name = "wolke-sieben-lambda"
+#     lambdapath = Path.cwd() / "src" / "aws" / "lambda_function.py"
+
+#     bucket_name = "wolke-sieben-bucket"
+#     datapath = Path.cwd() / "data" / "input_folder"
+
+#     # create resources
+#     S3Client.create_bucket(bucket_name)
+#     LambdaClient.create_lambda(function_name, lambdapath)
+
+#     # invoke lambda, write output to dynamoDB
+
+#     # hook lambda to s3
+#     # hook_lambda_to_s3(function_name, bucket_name)
+
+#     # trigger lambda
+#     random_file = next(datapath.rglob("*"))
+#     S3Client.upload_file(bucket_name, random_file)
+
+#     # delete resources
+#     S3Client.delete_bucket(bucket_name)
+#     LambdaClient.delete_lambda(function_name, lambdapath)
 
 if __name__ == "__main__":
     assert_user_authenticated()
 
-    function_name = "wolke-sieben-lambda"
-    lambdapath = Path.cwd() / "src" / "aws" / "lambda_function.py"
+    table_name = "wolke-sieben-table"
+    schema = {"name": "S"}
+    DynamoDBClient.create_table(table_name, schema)
 
-    bucket_name = "wolke-sieben-bucket"
-    datapath = Path.cwd() / "data" / "input_folder"
+    DynamoDBClient.list_tables()
 
-    # create resources
-    S3Client.create_bucket(bucket_name)
-    LambdaClient.create_lambda(function_name, lambdapath)
-
-    # hook lambda to s3
-    hook_lambda_to_s3(function_name, bucket_name)
-
-    # trigger lambda
-    random_file = next(datapath.rglob("*"))
-    S3Client.upload_file(bucket_name, random_file)
-
-    # delete resources
-    S3Client.delete_bucket(bucket_name)
-    LambdaClient.delete_lambda(function_name, lambdapath)
+    DynamoDBClient.delete_table(table_name)
