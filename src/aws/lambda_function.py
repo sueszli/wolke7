@@ -1,6 +1,5 @@
-# lambda function to be deployed
+import json
 
 
-def lambda_handler(event, context):
-    print(event)
-    print("all done!")
+def main(event, context):
+    return {"statusCode": 200, "body": json.dumps("Input received: " + str(event))}
