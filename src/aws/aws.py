@@ -381,8 +381,7 @@ if __name__ == "__main__":
     LambdaClient.create_lambda(lambda_name, lambda_path)
 
     # hook lambda to s3
-
-    random_file = next(datapath.rglob("*"))
+    random_file = next(data_path.rglob("*"))
     S3Client.upload_file(bucket_name, random_file)
 
     # invoke lambda
