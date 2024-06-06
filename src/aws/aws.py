@@ -5,6 +5,7 @@ from botocore.response import StreamingBody
 
 import zipfile
 import json
+from datetime import datetime
 import time
 from pathlib import Path
 from tqdm import tqdm
@@ -30,6 +31,13 @@ def assert_user_authenticated():
     except ClientError as e:
         print(f"{Fore.RED}ec2 instance not accessible - start lab, update credentials{Style.RESET_ALL}")
         exit(1)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super(DateTimeEncoder, self).default(obj)
 
 
 class LambdaClient:
@@ -288,7 +296,8 @@ class DynamoDBClient:
             if response["Table"]["TableStatus"] == "ACTIVE":
                 break
             time.sleep(1)
-        print(response)
+
+        print(json.dumps(response, cls=DateTimeEncoder, indent=2))
         assert DynamoDBClient.table_exists(table_name)
 
 
