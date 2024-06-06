@@ -10,6 +10,27 @@ from tqdm import tqdm
 from colorama import Fore, Style
 
 
+def assert_user_authenticated():
+    sts = boto3.client("sts")
+    assert sts.get_caller_identity(), "unable to authenticate"
+
+    uid = sts.get_caller_identity()["Account"]
+    secret = boto3.session.Session().get_credentials().secret_key  # type: ignore
+    access = boto3.session.Session().get_credentials().access_key  # type: ignore
+    session = boto3.session.Session().get_credentials().token  # type: ignore
+    region = boto3.session.Session().region_name  # type: ignore
+    assert uid and secret and access and session, "credentials must be set"
+    assert region == "us-east-1", "region must be set to us-east-1"
+    # print(f"credentials:\n\tacc id: {uid}\n\tsecret: {secret}\n\taccess: {access}\n\tsession: {session}\n\tnregion: {region}\n")
+
+    try:
+        ec2 = boto3.client("ec2")
+        _ = ec2.describe_instances()
+    except ClientError as e:
+        print(f"{Fore.RED}ec2 instance not accessible - start lab, update credentials{Style.RESET_ALL}")
+        exit(1)
+
+
 class LambdaClient:
     c = boto3.client("lambda")
 
@@ -219,59 +240,40 @@ class DynamoDBClient:
             return
         for table in response["TableNames"]:
             print(table)
-            for item in DynamoDBClient.c.scan(TableName=table)["Items"]:
-                print(f"\t{item}")
 
-    @staticmethod
-    def create_table(table_name: str, schema: dict) -> None:
-        print(f"{Fore.GREEN}creating table {table_name}{Style.RESET_ALL}")
+    # @staticmethod
+    # def create_table(table_name: str, schema: dict) -> None:
+    #     print(f"{Fore.GREEN}creating table {table_name}{Style.RESET_ALL}")
 
-        if DynamoDBClient.table_exists(table_name):
-            print(f"table {table_name} already exists, deleting first")
-            DynamoDBClient.delete_table(table_name)
-            print(f"deleted existing table - back to creating")
+    #     if DynamoDBClient.table_exists(table_name):
+    #         print(f"table {table_name} already exists, deleting first")
+    #         DynamoDBClient.delete_table(table_name)
+    #         print(f"deleted existing table - back to creating")
 
-        response = DynamoDBClient.c.create_table(
-            TableName=table_name,
-            KeySchema=[{"AttributeName": key, "KeyType": "HASH"} for key in schema],
-            AttributeDefinitions=[{"AttributeName": key, "AttributeType": schema[key]} for key in schema],
-            ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
-        )
-        decoded_response = json.loads(response)
-        print(json.dumps(decoded_response, indent=2))
+    #     response = DynamoDBClient.c.create_table(
+    #         TableName=table_name,
+    #         KeySchema=[{"AttributeName": key, "KeyType": "HASH"} for key in schema],
+    #         AttributeDefinitions=[{"AttributeName": key, "AttributeType": schema[key]} for key in schema],
+    #         ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
+    #     )
+    #     decoded_response = json.loads(response)
+    #     print(json.dumps(decoded_response, indent=2))
 
-        assert DynamoDBClient.table_exists(table_name)
+    #     assert DynamoDBClient.table_exists(table_name)
 
     @staticmethod
     def delete_table(table_name: str) -> None:
         print(f"{Fore.GREEN}deleting table {table_name}{Style.RESET_ALL}")
         assert DynamoDBClient.table_exists(table_name)
 
-        response = DynamoDBClient.c.delete_table(TableName=table_name)
+        while True:
+            try:
+                response = DynamoDBClient.c.delete_table(TableName=table_name)
+                break
+            except botocore.ClientError:
+                pass
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-
-        assert not DynamoDBClient.table_exists(table_name)
-
-
-def assert_user_authenticated():
-    sts = boto3.client("sts")
-    assert sts.get_caller_identity(), "unable to authenticate"
-
-    uid = sts.get_caller_identity()["Account"]
-    secret = boto3.session.Session().get_credentials().secret_key  # type: ignore
-    access = boto3.session.Session().get_credentials().access_key  # type: ignore
-    session = boto3.session.Session().get_credentials().token  # type: ignore
-    region = boto3.session.Session().region_name  # type: ignore
-    assert uid and secret and access and session, "credentials must be set"
-    assert region == "us-east-1", "region must be set to us-east-1"
-    # print(f"credentials:\n\tacc id: {uid}\n\tsecret: {secret}\n\taccess: {access}\n\tsession: {session}\n\tnregion: {region}\n")
-
-    try:
-        ec2 = boto3.client("ec2")
-        _ = ec2.describe_instances()
-    except ClientError as e:
-        print(f"{Fore.RED}ec2 instance not accessible - start lab, update credentials{Style.RESET_ALL}")
-        exit(1)
+        print(json.dumps(response, indent=2))
 
 
 # def hook_lambda_to_s3(function_name: str, bucket_name: str) -> None:
@@ -338,9 +340,16 @@ if __name__ == "__main__":
     assert_user_authenticated()
 
     table_name = "wolke-sieben-table"
-    schema = {"name": "S"}
-    DynamoDBClient.create_table(table_name, schema)
+    client = boto3.client("dynamodb")
 
-    DynamoDBClient.list_tables()
+    if DynamoDBClient.table_exists(table_name):
+        DynamoDBClient.delete_table(table_name)
 
-    DynamoDBClient.delete_table(table_name)
+    # print("creating table")
+    # table_config = {
+    #     "TableName": table_name,
+    #     "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    #     "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+    #     "ProvisionedThroughput": {"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
+    # }
+    # response = client.create_table(**table_config)
