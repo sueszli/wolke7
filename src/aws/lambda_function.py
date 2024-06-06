@@ -2,4 +2,5 @@ import json
 
 
 def main(event, context):
-    return {"statusCode": 200, "body": json.dumps("Input received: " + str(event))}
+
+    return {"body": str(event)}

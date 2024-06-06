@@ -153,12 +153,10 @@ def system_info():
 @app.route("/api/debug", methods=["GET"])
 def debug():
     """
-    In order to debug the server side, you can use this endpoint to trigger a
-    breakpoint in the server code by using pdb.set_trace() where you want to
-    pause the execution and inspect the variables.
-    To enable the debug mode just enter
-    `http://127.0.0.1:5000/api/debug?image_path=data\input_folder\000000003111.jpg&confidence=0.2`
-    where you can add the image_path and the confidence level as query parameters.
+    In order to debug the server side, you can use this endpoint to trigger a breakpoint in the server code by using pdb.set_trace() where you want to pause the execution and inspect the variables.
+
+    To enable the debug mode just enter `http://127.0.0.1:5000/api/debug?image_path=data\input_folder\000000003111.jpg&confidence=0.2` where you can add the image_path and the confidence level as query parameters.
+
     It also returns the image with the detected objects.
     """
     image_path_param = request.args.get("image_path")

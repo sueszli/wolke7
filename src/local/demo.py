@@ -1,7 +1,7 @@
 """
 Demo script to show how to use YOLO object detection with OpenCV.
 
-$ python3 ./src/demo.py --image-path ./data/input_folder/000000000968.jpg
+$ python3 demo.py --image-path ./data/input_folder/000000000968.jpg
 
     [[111, 190, 224, 184]] ['cat'] [0.931888222694397] 
 
