@@ -7,13 +7,13 @@ import datetime
 import json
 
 
-def main(event, context) -> dict:
-    assert event.get("table_name")
-    table_name = event["table_name"]
+def main(args, context) -> dict:
+    assert args.get("table_name")
+    table_name = args["table_name"]
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(table_name)
 
-    # write
+    # write arbitrary data to DynamoDB
     response = table.put_item(
         Item={
             "id": "1",
@@ -23,13 +23,10 @@ def main(event, context) -> dict:
     )
     assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
 
-    # read
-    table_items = table.scan()["Items"]
-
     return {
         # echo input args for debugging
         # see: https://docs.aws.amazon.com/lambda/latest/dg/python-context.html
-        "event": dict(event),
+        "args": dict(args),
         "context": {
             "function_name": context.function_name,
             "function_version": context.function_version,
@@ -38,6 +35,4 @@ def main(event, context) -> dict:
             "aws_request_id": context.aws_request_id,
             "log_group_name": context.log_group_name,
         },
-        # return actual result
-        "table_items": table_items,
     }

@@ -300,68 +300,63 @@ class DynamoDBClient:
         print(json.dumps(response, cls=DateTimeEncoder, indent=2))
         assert DynamoDBClient.table_exists(table_name)
 
+        # def hook_lambda_to_s3(lambda_name: str, bucket_name: str) -> None:
+        #     print(f"{Fore.GREEN}hooking lambda function {lambda_name} to bucket {bucket_name}{Style.RESET_ALL}")
 
-# def hook_lambda_to_s3(lambda_name: str, bucket_name: str) -> None:
-#     print(f"{Fore.GREEN}hooking lambda function {lambda_name} to bucket {bucket_name}{Style.RESET_ALL}")
+        #     lambda_client = boto3.client("lambda")
+        #     s3_client = boto3.client("s3")
+        #     account_id = boto3.client("sts").get_caller_identity()["Account"]
 
-#     lambda_client = boto3.client("lambda")
-#     s3_client = boto3.client("s3")
-#     account_id = boto3.client("sts").get_caller_identity()["Account"]
+        #     lambda_client.add_permission(
+        #         FunctionName=lambda_name,
+        #         StatementId="s3-invoke-lambda-statement",
+        #         Action="lambda:InvokeFunction",
+        #         Principal="s3.amazonaws.com",
+        #         SourceArn=f"arn:aws:s3:::{bucket_name}",
+        #     )
 
-#     lambda_client.add_permission(
-#         FunctionName=lambda_name,
-#         StatementId="s3-invoke-lambda-statement",
-#         Action="lambda:InvokeFunction",
-#         Principal="s3.amazonaws.com",
-#         SourceArn=f"arn:aws:s3:::{bucket_name}",
-#     )
+        #     region = boto3.session.Session().region_name  # type: ignore
+        #     s3_client.put_bucket_notification_configuration(
+        #         Bucket=bucket_name,
+        #         NotificationConfiguration={
+        #             "LambdaFunctionConfigurations": [
+        #                 {
+        #                     "LambdaFunctionArn": f"arn:aws:lambda:{region}:{account_id}:function:{lambda_name}",
+        #                     "Events": ["s3:ObjectCreated:*"],
+        #                 }
+        #             ]
+        #         },
+        #     )
 
-#     region = boto3.session.Session().region_name  # type: ignore
-#     s3_client.put_bucket_notification_configuration(
-#         Bucket=bucket_name,
-#         NotificationConfiguration={
-#             "LambdaFunctionConfigurations": [
-#                 {
-#                     "LambdaFunctionArn": f"arn:aws:lambda:{region}:{account_id}:function:{lambda_name}",
-#                     "Events": ["s3:ObjectCreated:*"],
-#                 }
-#             ]
-#         },
-#     )
+        #     response = s3_client.get_bucket_notification_configuration(Bucket=bucket_name)
+        #     print(json.dumps(response, indent=2))
+        #     assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
 
-#     response = s3_client.get_bucket_notification_configuration(Bucket=bucket_name)
-#     print(json.dumps(response, indent=2))
-#     assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        # if __name__ == "__main__":
+        #     assert_user_authenticated()
 
+        #     lambda_name = "wolke-sieben-lambda"
+        #     lambda_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
 
-# if __name__ == "__main__":
-#     assert_user_authenticated()
+        #     bucket_name = "wolke-sieben-bucket"
+        #     data_path = Path.cwd() / "data" / "input_folder"
 
-#     lambda_name = "wolke-sieben-lambda"
-#     lambda_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
+        #     table_name = "wolke-sieben-table"
 
-#     bucket_name = "wolke-sieben-bucket"
-#     data_path = Path.cwd() / "data" / "input_folder"
+        #     # create services
+        #     LambdaClient.create_lambda(lambda_name, lambda_path)
+        #     S3Client.create_bucket(bucket_name)
+        #     DynamoDBClient.create_table(table_name)
 
-#     table_name = "wolke-sieben-table"
+        #     # list services
+        #     LambdaClient.list_lambdas()
+        #     S3Client.list_buckets()
+        #     DynamoDBClient.list_tables()
 
-#     # create services
-#     LambdaClient.create_lambda(lambda_name, lambda_path)
-#     S3Client.create_bucket(bucket_name)
-#     DynamoDBClient.create_table(table_name)
+        #     # hook lambda to s3
+        #     # hook lambda to dynamodb
+        #     # invoke and test whether results are stored in dynamodb
 
-#     # list services
-#     LambdaClient.list_lambdas()
-#     S3Client.list_buckets()
-#     DynamoDBClient.list_tables()
-
-#     # hook lambda to s3
-#     # hook lambda to dynamodb
-#     # invoke and test whether results are stored in dynamodb
-
-#     #     # trigger lambda
-#     #     random_file = next(datapath.rglob("*"))
-#     #     S3Client.upload_file(bucket_name, random_file)
 
 #     # delete services
 #     DynamoDBClient.delete_table(table_name)
@@ -374,14 +369,23 @@ if __name__ == "__main__":
 
     table_name = "wolke-sieben-table"
 
+    bucket_name = "wolke-sieben-bucket"
+    data_path = Path.cwd() / "data" / "input_folder"
+
     lambda_name = "wolke-sieben-lambda"
     lambda_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
 
     # create services
     DynamoDBClient.create_table(table_name)
+    S3Client.create_bucket(bucket_name)
     LambdaClient.create_lambda(lambda_name, lambda_path)
 
-    # invoke lambda to write to dynamodb
+    # hook lambda to s3
+
+    random_file = next(datapath.rglob("*"))
+    S3Client.upload_file(bucket_name, random_file)
+
+    # invoke lambda
     payload = {"table_name": table_name}
     LambdaClient.invoke_lambda(lambda_name, payload)
 
@@ -390,4 +394,5 @@ if __name__ == "__main__":
 
     # delete services
     DynamoDBClient.delete_table(table_name)
+    S3Client.delete_bucket(bucket_name)
     LambdaClient.delete_lambda(lambda_name, lambda_path)
