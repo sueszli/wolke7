@@ -27,7 +27,7 @@ def main(args, context) -> dict:
 
     # write output to dynamodb
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(TABLE_NAME)
+    table = dynamodb.Table(TABLE_NAME)  # type: ignore
     res = table.put_item(
         Item={
             "timestamp": datetime.datetime.now().isoformat(),
