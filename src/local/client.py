@@ -54,7 +54,7 @@ if __name__ == "__main__":
             assert response.status_code == 200, f"Status code: {response.status_code}"
             assert response.json()["id"] == image_id, f"Image ID mismatch for {image_id}"
 
-            response_data = {key: value for key, value in response.json().items() if key != 'image'}
+            response_data = {key: value for key, value in response.json().items() if key != "image"}
             print(json.dumps(response_data, indent=4))
 
             inference_time = response_data["inference_time"]

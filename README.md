@@ -1,3 +1,19 @@
+```
+                        process image
+ trigger lambda      ┌─────────────────┐       store results
+      ┌──────────────► Lambda Function ├────────────┐
+      │              └─────────────────┘            │
+┌─────┴─────┐                                  ┌────▼─────┐
+│ S3 Bucket │                                  │ DynamoDB │
+└─────▲─────┘                                  └────┬─────┘
+      │                                             │
+      │                                             │
+      │                                             │
+      │                                             │
+      │                                             ▼
+ upload image                                  look up results
+```
+
 # running local code
 
 ```bash
@@ -10,21 +26,20 @@ pip install black
 # rm -rf requirements.txt && pip install pipreqs && pipreqs .
 pip install -r requirements.txt
 
-# start client and server
+# start client and server locally
 python3 ./src/local/server.py
 python3 ./src/local/client.py ./data/input_folder http://127.0.0.1:5000/api
 ```
 
 # deploying to aws
 
-i. check your emails for "AWS academy", sign up
+i. sign up through the email you received from "AWS academy"
 
--   https://awsacademy.instructure.com/courses/82630/modules/items/7490502
-
-ii. open your aws console:
+ii. open up your aws console:
 
 -   ignore all tutorials, they're useless
--   `Courses` > `Modules` > `AWS Academy Learner Lab Resources` > `Launch AWS Academy Learner Lab` > `Start Lab`
+-   open `Courses` > `Modules` > `AWS Academy Learner Lab Resources` > `Launch AWS Academy Learner Lab` > `Start Lab`
+    -   see: https://awsacademy.instructure.com/courses/82630/modules/items/7490502
 -   wait until the lab is ready
 -   click on `AWS Details`
 
@@ -39,7 +54,3 @@ iii. use the cli or boto3 to access aws services:
 
 -   cli docs: https://docs.aws.amazon.com/cli/latest/
 -   boto3 docs: https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
-
-```bash
-python3 ./src/aws/<...>.py
-```
