@@ -9,12 +9,10 @@ import json
 TABLE_NAME = "wolke-sieben-table"
 
 
-def main(args, context) -> dict:
-
+def main(event, context) -> dict:
+    print("Lambda Function invoked with event:", event)
     output = {
-        # useful for debugging
-        # see: https://docs.aws.amazon.com/lambda/latest/dg/python-context.html
-        "args": dict(args),
+        "args": event,
         "context": {
             "function_name": context.function_name,
             "function_version": context.function_version,
@@ -25,16 +23,27 @@ def main(args, context) -> dict:
         },
     }
 
-    # write output to dynamodb
+    # Extract S3 event details
+    if "Records" in event and len(event["Records"]) > 0:
+        s3_event = event["Records"][0]["s3"]
+        bucket_name = s3_event["bucket"]["name"]
+        object_key = s3_event["object"]["key"]
+        output["s3"] = {
+            "bucket_name": bucket_name,
+            "object_key": object_key,
+        }
+
+    # Write output to DynamoDB
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(TABLE_NAME)
     res = table.put_item(
         Item={
             "timestamp": datetime.datetime.now().isoformat(),
+            "message": "S3 Event Processed",  # Log message
             **output,
         }
     )
     assert res["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
 
-    # return output as json
+    # Return output as json
     return output

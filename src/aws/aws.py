@@ -102,6 +102,33 @@ class S3Client:
         assert S3Client.bucket_exists(bucket_name)
 
     @staticmethod
+    def add_invoke_permission(lambda_arn: str, bucket_name: str) -> None:
+        print(f"{Fore.GREEN}adding invoke permission for {bucket_name} to {lambda_arn}{Style.RESET_ALL}")
+
+        statement_id = f"{bucket_name}-invoke-permission"
+
+        try:
+            policy = LambdaClient.c.get_policy(FunctionName=lambda_arn)
+            policy_dict = json.loads(policy["Policy"])
+            for statement in policy_dict["Statement"]:
+                if statement["Sid"] == statement_id:
+                    # If the permission exists, remove it
+                    LambdaClient.c.remove_permission(FunctionName=lambda_arn, StatementId=statement_id)
+                    break
+        except LambdaClient.c.exceptions.ResourceNotFoundException:
+            pass
+
+        response = LambdaClient.c.add_permission(
+            FunctionName=lambda_arn, StatementId=statement_id, Action="lambda:InvokeFunction", Principal="s3.amazonaws.com", SourceArn=f"arn:aws:s3:::{bucket_name}"
+        )
+
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        print(f"{Fore.GREEN}Invoke permission added for {bucket_name} to {lambda_arn}{Style.RESET_ALL}")
+        # Print the resulting policy for debugging
+        policy = LambdaClient.c.get_policy(FunctionName=lambda_arn)
+        print(json.dumps(json.loads(policy["Policy"]), indent=2))
+
+    @staticmethod
     def upload_file(bucket_name: str, file_path: Path) -> None:
         print(f"{Fore.GREEN}uploading file {file_path} to bucket {bucket_name}{Style.RESET_ALL}")
         assert S3Client.bucket_exists(bucket_name)
@@ -110,14 +137,47 @@ class S3Client:
         S3Client.c.upload_file(str(file_path), bucket_name, file_path.name)
 
     @staticmethod
-    def upload_folder(bucket_name: str, folder_path: Path) -> None:
+    def upload_folder(bucket_name: str, folder_path: Path, s3_directory: str = "") -> None:
         print(f"{Fore.GREEN}uploading folder {folder_path} to bucket {bucket_name}{Style.RESET_ALL}")
         assert S3Client.bucket_exists(bucket_name)
 
         for file_path in tqdm(folder_path.rglob("*")):
             if file_path.is_file():
-                upload_path = file_path.relative_to(folder_path)
-                S3Client.c.upload_file(str(file_path), bucket_name, str(upload_path))
+                relative_path = file_path.relative_to(folder_path)
+                key = f"{s3_directory}/{relative_path}" if s3_directory else str(relative_path)
+
+                S3Client.c.upload_file(str(file_path), bucket_name, key)
+
+    @staticmethod
+    def set_bucket_notification(bucket_name: str, lambda_function_arn: str) -> None:
+        print(f"{Fore.GREEN}setting bucket notification for {bucket_name}{Style.RESET_ALL}")
+        assert S3Client.bucket_exists(bucket_name)
+
+        response = S3Client.c.put_bucket_notification_configuration(
+            Bucket=bucket_name,
+            NotificationConfiguration={
+                "LambdaFunctionConfigurations": [
+                    {
+                        "LambdaFunctionArn": lambda_function_arn,
+                        "Events": ["s3:ObjectCreated:*"],
+                        "Filter": {
+                            "Key": {
+                                "FilterRules": [
+                                    {"Name": "suffix", "Value": ".jpg"},
+                                ]
+                            }
+                        },
+                    },
+                ]
+            },
+        )
+
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+    @staticmethod
+    def get_bucket_notification(bucket_name: str) -> None:
+        response = S3Client.c.get_bucket_notification_configuration(Bucket=bucket_name)
+        print(json.dumps(response, indent=2))
 
 
 class DynamoDBClient:
@@ -201,6 +261,7 @@ class DynamoDBClient:
 
 class LambdaClient:
     c = boto3.client("lambda")
+    iam = boto3.client("iam")
 
     @staticmethod
     def lambda_exists(lambda_name: str) -> bool:
@@ -241,7 +302,35 @@ class LambdaClient:
         assert not file_path.with_suffix(".zip").exists()
 
     @staticmethod
-    def create_lambda(lambda_name: str, file_path: Path) -> None:
+    def __remove_permission(lambda_function_name: str, statement_id: str):
+        try:
+            policy = LambdaClient.c.get_policy(FunctionName=lambda_function_name)
+            policy_dict = json.loads(policy["Policy"])
+            for statement in policy_dict["Statement"]:
+                if statement["Sid"] == statement_id:
+                    response = LambdaClient.c.remove_permission(FunctionName=lambda_function_name, StatementId=statement_id)
+
+                    if response["ResponseMetadata"]["HTTPStatusCode"] == 204:
+                        print("Permission removed successfully.")
+                    else:
+                        print("Failed to remove permission.")
+                    break
+        except LambdaClient.c.exceptions.ResourceNotFoundException:
+            print("No policy with the given statement ID exists.")
+
+    @staticmethod
+    def __add_invoke_permission(lambda_function_name: str, bucket_name: str):
+
+        LambdaClient.__remove_permission(lambda_function_name, f"{bucket_name}-invoke-permission")
+
+        response = LambdaClient.c.add_permission(
+            FunctionName=lambda_function_name, StatementId=f"{bucket_name}-invoke-permission", Action="lambda:InvokeFunction", Principal="s3.amazonaws.com", SourceArn=f"arn:aws:s3:::{bucket_name}"
+        )
+
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+
+    @staticmethod
+    def create_lambda(lambda_name: str, bucket_name: str, file_path: Path) -> str:
         print(f"{Fore.GREEN}creating lambda function {lambda_name}{Style.RESET_ALL}")
         assert file_path.exists()
         assert file_path.suffix == ".py"
@@ -280,6 +369,10 @@ class LambdaClient:
 
         assert LambdaClient.lambda_exists(lambda_name)
 
+        LambdaClient.__add_invoke_permission(lambda_name, bucket_name)
+
+        return response["FunctionArn"]
+
     @staticmethod
     def invoke_lambda(lambda_name: str, payload: dict) -> None:
         print(f"{Fore.GREEN}invoking lambda function {lambda_name}{Style.RESET_ALL}")
@@ -302,64 +395,35 @@ class LambdaClient:
         decoded_response = json.loads(response["Payload"].read().decode("utf-8"))
         print(json.dumps(decoded_response, indent=2))
 
-    @staticmethod
-    def enable_s3_trigger(lambda_name: str, bucket_name: str):
-        print(f"{Fore.GREEN}enabling s3 trigger for lambda function {lambda_name} on bucket {bucket_name}{Style.RESET_ALL}")
-        assert LambdaClient.lambda_exists(lambda_name)
-        assert S3Client.bucket_exists(bucket_name)
-
-        response = LambdaClient.c.get_function(FunctionName=lambda_name)
-        lambda_arn = response["Configuration"]["FunctionArn"]
-
-        exit(1)  # TODO: implement this
-
-        # Add policy to lambda function that allows s3 to invoke it
-        policy = {
-            "Version": "2024-01-01",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": "lambda:InvokeFunction",
-                    "Resource": lambda_arn,
-                    "Condition": {"ArnLike": {"AWS:SourceArn": f"arn:aws:s3:::{bucket_name}"}},
-                }
-            ],
-        }
-        response = iam.create_policy(PolicyName="s3-lambda-trigger", PolicyDocument=json.dumps(policy))
-
-        # Enable S3 trigger
-        response = S3Client.c.put_bucket_notification_configuration(
-            Bucket=bucket_name,
-            NotificationConfiguration={
-                "LambdaFunctionConfigurations": [
-                    {
-                        "LambdaFunctionArn": lambda_arn,
-                        "Events": ["s3:ObjectCreated:*"],
-                    }
-                ],
-            },
-        )
-        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-
 
 if __name__ == "__main__":
     assert_user_authenticated()
 
     table_name = TABLE_NAME
 
-    bucket_name = "wolke-sieben-bucket"
+    bucket_name = "wolke-sieben-bucket-paul"
     data_path = Path.cwd() / "data" / "input_folder"
 
     lambda_name = "wolke-sieben-lambda"
     lambda_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
 
+    yolo_tiny_configs = Path.cwd() / "yolo_tiny_configs"
+
     # create services
     DynamoDBClient.create_table(table_name)
     S3Client.create_bucket(bucket_name)
-    LambdaClient.create_lambda(lambda_name, lambda_path)
+    lambda_arn_name = LambdaClient.create_lambda(lambda_name, bucket_name, lambda_path)
+
+    # Upload Model Configs
+    # S3Client.upload_folder(bucket_name, yolo_tiny_configs, yolo_tiny_configs.name)
 
     # TODO: hook lambda to s3
     # LambdaClient.enable_s3_trigger(lambda_name, bucket_name)
+
+    # Hooking up Lambda to S3
+    S3Client.add_invoke_permission(lambda_arn_name, bucket_name)
+    S3Client.set_bucket_notification(bucket_name, lambda_arn_name)
+    S3Client.get_bucket_notification(bucket_name)
 
     # invoke lambda with s3 event
     random_file = next(data_path.rglob("*"))
@@ -367,8 +431,8 @@ if __name__ == "__main__":
     S3Client.list_buckets()
 
     # invoke lambda with payload
-    payload = {"hello": "this is a manual invocation"}
-    LambdaClient.invoke_lambda(lambda_name, payload)
+    # payload = {"hello": "this is a manual invocation"}
+    # LambdaClient.invoke_lambda(lambda_name, payload)
 
     # show results in dynamodb
     DynamoDBClient.list_tables()
