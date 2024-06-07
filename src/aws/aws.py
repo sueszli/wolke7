@@ -409,35 +409,32 @@ if __name__ == "__main__":
 
     yolo_tiny_configs = Path.cwd() / "yolo_tiny_configs"
 
-    # create services
+    # Create services
     DynamoDBClient.create_table(table_name)
     S3Client.create_bucket(bucket_name)
     lambda_arn_name = LambdaClient.create_lambda(lambda_name, bucket_name, lambda_path)
 
     # Upload Model Configs
-    # S3Client.upload_folder(bucket_name, yolo_tiny_configs, yolo_tiny_configs.name)
-
-    # TODO: hook lambda to s3
-    # LambdaClient.enable_s3_trigger(lambda_name, bucket_name)
+    S3Client.upload_folder(bucket_name, yolo_tiny_configs, yolo_tiny_configs.name)
 
     # Hooking up Lambda to S3
     S3Client.add_invoke_permission(lambda_arn_name, bucket_name)
     S3Client.set_bucket_notification(bucket_name, lambda_arn_name)
     S3Client.get_bucket_notification(bucket_name)
 
-    # invoke lambda with s3 event
+    # Invoke lambda with s3 event
     random_file = next(data_path.rglob("*"))
     S3Client.upload_file(bucket_name, random_file)
     S3Client.list_buckets()
 
-    # invoke lambda with payload
+    # Invoke lambda with payload
     # payload = {"hello": "this is a manual invocation"}
     # LambdaClient.invoke_lambda(lambda_name, payload)
 
-    # show results in dynamodb
+    # Show results in dynamodb
     DynamoDBClient.list_tables()
 
-    # delete services
+    # Delete services
     DynamoDBClient.delete_table(table_name)
     S3Client.delete_bucket(bucket_name)
     LambdaClient.delete_lambda(lambda_name, lambda_path)
