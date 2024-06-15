@@ -5,6 +5,7 @@ from botocore.response import StreamingBody
 
 from lambda_function import TABLE_NAME
 
+import os
 import zipfile
 import json
 from datetime import datetime
@@ -264,6 +265,14 @@ class LambdaClient:
     iam = boto3.client("iam")
 
     @staticmethod
+    def layer_exists(lambda_name: str) -> bool:
+        existing_functions = LambdaClient.c.list_layers()["Layers"]
+        for function in existing_functions:
+            if lambda_name == function["LayerName"]:
+                return True
+        return False
+
+    @staticmethod
     def lambda_exists(lambda_name: str) -> bool:
         existing_functions = LambdaClient.c.list_functions()["Functions"]
         for function in existing_functions:
@@ -330,7 +339,7 @@ class LambdaClient:
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
 
     @staticmethod
-    def create_lambda(lambda_name: str, bucket_name: str, file_path: Path) -> str:
+    def create_lambda(lambda_name: str, bucket_name: str, layer_name: str, file_path: Path) -> str:
         print(f"{Fore.GREEN}creating lambda function {lambda_name}{Style.RESET_ALL}")
         assert file_path.exists()
         assert file_path.suffix == ".py"
@@ -349,6 +358,7 @@ class LambdaClient:
 
             with zipfile.ZipFile(zip_file_path, "w") as z:
                 z.write(file_path, file_path.name)
+            os.chmod(file_path, 0o777)
             print(f"created lambda zip")
             return zip_file_path
 
@@ -359,10 +369,12 @@ class LambdaClient:
             role = "LabRole"
             response = LambdaClient.c.create_function(
                 FunctionName=lambda_name,
-                Runtime="python3.8",
+                Runtime="python3.10",
                 Role=f"arn:aws:iam::{accountid}:role/{role}",
                 Handler="lambda_function.main",
                 Code={"ZipFile": f.read()},
+                Layers=[layer_name],
+                Timeout=900,
             )
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         print(json.dumps(response, indent=2))
@@ -372,6 +384,37 @@ class LambdaClient:
         LambdaClient.__add_invoke_permission(lambda_name, bucket_name)
 
         return response["FunctionArn"]
+
+    @staticmethod
+    def delete_layer(layer_name: str) -> None:
+        print(f"{Fore.GREEN}deleting lambda layer {layer_name}{Style.RESET_ALL}")
+        assert LambdaClient.layer_exists(layer_name)
+
+        response = LambdaClient.c.list_layer_versions(LayerName=layer_name)
+        for version in response["LayerVersions"]:
+            response = LambdaClient.c.delete_layer_version(LayerName=layer_name, VersionNumber=version["Version"])
+            assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        assert not LambdaClient.layer_exists(layer_name)
+
+    @staticmethod
+    def publish_layer(layer_name: str, bucket_name: str, file_name: str) -> str:
+        print(f"{Fore.GREEN}publishing lambda layer {layer_name}{Style.RESET_ALL}")
+
+        if LambdaClient.layer_exists(layer_name):
+            print(f"layer function {layer_name} already exists, deleting first")
+            LambdaClient.delete_layer(layer_name)
+            print(f"deleted existing layer function - back to creating")
+
+        response = LambdaClient.c.publish_layer_version(
+            LayerName=layer_name,
+            Content={"S3Bucket": bucket_name, "S3Key": file_name},
+            CompatibleRuntimes=["python3.10"],
+        )
+        assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
+        print(json.dumps(response, indent=2))
+
+        assert LambdaClient.layer_exists(layer_name)
+        return response["LayerVersionArn"]
 
     @staticmethod
     def invoke_lambda(lambda_name: str, payload: dict) -> None:
@@ -401,8 +444,11 @@ if __name__ == "__main__":
 
     table_name = TABLE_NAME
 
-    bucket_name = "wolke-sieben-bucket-paul"
+    bucket_name = "wolke-sieben-bucket-raquel"
     data_path = Path.cwd() / "data" / "input_folder"
+
+    layer_name = "wolke-sieben-layer"
+    layer_path = Path.cwd() / "src" / "aws" / "packages.zip"
 
     lambda_name = "wolke-sieben-lambda"
     lambda_path = Path.cwd() / "src" / "aws" / "lambda_function.py"
@@ -412,7 +458,11 @@ if __name__ == "__main__":
     # Create services
     DynamoDBClient.create_table(table_name)
     S3Client.create_bucket(bucket_name)
-    lambda_arn_name = LambdaClient.create_lambda(lambda_name, bucket_name, lambda_path)
+
+    # Upload dependencies to S3
+    S3Client.upload_file(bucket_name, layer_path)
+    layer_arn_name = LambdaClient.publish_layer(layer_name, bucket_name, layer_path.name)
+    lambda_arn_name = LambdaClient.create_lambda(lambda_name, bucket_name, layer_arn_name, lambda_path)
 
     # Upload Model Configs
     S3Client.upload_folder(bucket_name, yolo_tiny_configs, yolo_tiny_configs.name)
@@ -433,6 +483,8 @@ if __name__ == "__main__":
 
     # Show results in dynamodb
     DynamoDBClient.list_tables()
+
+    exit(0)
 
     # Delete services
     DynamoDBClient.delete_table(table_name)
