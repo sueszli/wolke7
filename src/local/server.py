@@ -36,7 +36,7 @@ class ObjectDetection:
 
         self.output_layers = self.net.getUnconnectedOutLayersNames()
 
-    def detect_objects(self, image_data, confidence_threshold=0.5):
+    def detect_objects(self, image_data, confidence_threshold=0.5, return_image=False):
         # Convert to a numpy array and decode to an image
         nparr = np.frombuffer(image_data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -82,22 +82,25 @@ class ObjectDetection:
         detected_objects = []
         if len(indexes) > 0:
             COLORS = np.random.randint(0, 255, size=(len(self.classes), 3))
-            for i in indexes.flatten():
+            for i in indexes:
                 label = str(self.classes[class_ids[i]])
                 confidence = confidences[i]
                 if confidence > confidence_threshold:
                     detected_objects.append({"label": label, "accuracy": confidence})
 
-                    (x, y) = (boxes[i][0], boxes[i][1])
-                    (w, h) = (boxes[i][2], boxes[i][3])
-                    color = COLORS[class_ids[i]].tolist()
-                    cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
-                    text = "{}: {:.4f}".format(label, confidence)
-                    cv2.putText(img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    if return_image:
+                        (x, y) = (boxes[i][0], boxes[i][1])
+                        (w, h) = (boxes[i][2], boxes[i][3])
+                        color = COLORS[class_ids[i]].tolist()
+                        cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+                        text = "{}: {:.4f}".format(label, confidence)
+                        cv2.putText(img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         # Encode the image to return
-        _, img_encoded = cv2.imencode(".jpg", img)
-        img_base64 = base64.b64encode(img_encoded).decode("utf-8")
+        img_base64 = None
+        if return_image:
+            _, img_encoded = cv2.imencode(".jpg", img)
+            img_base64 = base64.b64encode(img_encoded).decode("utf-8")
 
         return detected_objects, inference_time, img_base64
 
@@ -112,8 +115,12 @@ def object_detection():
         img_id = data["id"]
         img_data = base64.b64decode(data["image_data"])
         confidence_threshold = data.get("confidence", 0.5)
-        detected_objects, inference_time, img_base64 = detector.detect_objects(img_data, confidence_threshold)
-        return jsonify({"id": img_id, "objects": detected_objects, "inference_time": inference_time, "image": img_base64})
+        return_image = data.get("return_image", False)
+        detected_objects, inference_time, img_base64 = detector.detect_objects(img_data, confidence_threshold, return_image)
+        if return_image:
+            return jsonify({"id": img_id, "objects": detected_objects, "inference_time": inference_time, "image": img_base64})
+        else:
+            return jsonify({"id": img_id, "objects": detected_objects, "inference_time": inference_time})
     except Exception as e:
         return jsonify({"error": "An error occurred during object detection", "details": str(e)}), 500
 
@@ -163,13 +170,13 @@ def debug():
     confidence_param = request.args.get("confidence", default=0.3, type=float)
 
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    image_path = BASE_DIR / image_path_param
+    image_path = BASE_DIR / str(image_path_param)
 
     try:
         with open(image_path, "rb") as image_file:
             encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-        payload = {"id": "unique_image_id", "image_data": encoded_image, "confidence": confidence_param}
+        payload = {"id": "unique_image_id", "image_data": encoded_image, "confidence": confidence_param, "return_image": True}
 
         url = "http://127.0.0.1:5000/api/object_detection"
         response = requests.post(url, json=payload)
