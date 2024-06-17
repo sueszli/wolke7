@@ -58,8 +58,6 @@ Finally, using Boto3, we establish a Lambda function that is linked to both the 
 
 The Lambda function first checks if the necessary YOLO configuration files and the uploaded image are present locally in the temporary (`tmp`) folder. If these files are not already available locally, the Lambda function downloads them from the S3 bucket that triggered the function. Subsequently, the uploaded image is processed for object detection. The detected objects along with relevant metadata are then stored as an item in the DynamoDB table associated with the application.
 
-![](./assets/explained.png)
-
 ![AWS Architecture for Object Detection](./assets/aws_architecture.png)
 
 # 4. Results
