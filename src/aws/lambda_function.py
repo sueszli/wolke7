@@ -136,27 +136,12 @@ def main(event, context) -> dict:
         # Download all files in the specified S3 folder to /tmp when the container is initialized
         boto3_client.download_all_files_in_folder(BUCKET_NAME, S3_FOLDER, LOCAL_TMP_FOLDER)
 
-    output = {
-        "args": event,
-        "context": {
-            "function_name": context.function_name,
-            "function_version": context.function_version,
-            "memory_limit_in_mb": context.memory_limit_in_mb,
-            "time_remaining_in_millis": context.get_remaining_time_in_millis(),
-            "aws_request_id": context.aws_request_id,
-            "log_group_name": context.log_group_name,
-        },
-    }
-
     # Extract S3 event details
     if "Records" in event and len(event["Records"]) > 0:
+        event_time = event["Records"][0]["eventTime"]
         s3_event = event["Records"][0]["s3"]
         bucket_name = s3_event["bucket"]["name"]
         object_key = s3_event["object"]["key"]
-        output["s3"] = {
-            "bucket_name": bucket_name,
-            "object_key": object_key,
-        }
 
     # Download the file from S3
     image_path = f"/tmp/{object_key}"
@@ -170,23 +155,34 @@ def main(event, context) -> dict:
     obj_detect = ObjectDetection()
     detected_objects, inference_time = obj_detect.detect_objects(image_data, confidence_threshold=0.5)
 
-    output["yolo"] = {
-        "detected_objects": detected_objects,
-        "inference_time": inference_time,
+    dynamodb_item = {
+        "timestamp": {"S": datetime.datetime.now().isoformat()},
+        "s3_eventTime": {"S": event_time},
+        "context": {
+            "M": {
+                "function_name": {"S": context.function_name},
+                "function_version": {"S": context.function_version},
+                "memory_limit_in_mb": {"N": str(context.memory_limit_in_mb)},
+                "time_remaining_in_millis": {"N": str(context.get_remaining_time_in_millis())},
+                "aws_request_id": {"S": context.aws_request_id},
+                "log_group_name": {"S": context.log_group_name},
+            },
+        },
+        "yolo_detection": {
+            "M": {
+                "input_image": {"S": f"s3://{bucket_name}/{object_key}"},  # S3 URI
+                "detected_objects": {"L": [{"M": {"label": {"S": obj["label"]}, "accuracy": {"N": str(obj["accuracy"])}}} for obj in detected_objects]},
+                "inference_time": {"N": str(inference_time)},
+            }
+        },
     }
 
-    print("Output:", output)
+    print("DynamoDB PutItem Request: ", dynamodb_item)
 
     # Write output to DynamoDB
-    dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(TABLE_NAME)  # type: ignore
-    res = table.put_item(
-        Item={
-            "timestamp": datetime.datetime.now().isoformat(),
-            "message": "S3 Event Processed",  # Log message
-            **output,
-        }
+    dynamodb = boto3.client("dynamodb")
+    res = dynamodb.put_item(
+        TableName=TABLE_NAME,
+        Item=dynamodb_item,
     )
-    assert res["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
-
-    return output
+    assert res["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2, f"Failed to write to DynamoDB: {res}"

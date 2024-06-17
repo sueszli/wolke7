@@ -375,6 +375,7 @@ class LambdaClient:
                 Code={"ZipFile": f.read()},
                 Layers=[layer_name],
                 Timeout=900,
+                MemorySize=1024,
             )
         assert response["ResponseMetadata"]["HTTPStatusCode"] // 100 == 2
         print(json.dumps(response, indent=2))
@@ -472,21 +473,15 @@ if __name__ == "__main__":
     S3Client.set_bucket_notification(bucket_name, lambda_arn_name)
     S3Client.get_bucket_notification(bucket_name)
 
-    # Invoke lambda with s3 event
-    random_file = next(data_path.rglob("*"))
-    S3Client.upload_file(bucket_name, random_file)
-    S3Client.list_buckets()
+    # Invoke lambda with s3 event for each file in the data folder
+    for file in data_path.rglob("*"):
+        S3Client.upload_file(bucket_name, file)
+       
 
-    # Invoke lambda with payload
-    # payload = {"hello": "this is a manual invocation"}
-    # LambdaClient.invoke_lambda(lambda_name, payload)
+    # Show results in dynamodb --> this doesn't work because it's async, results can be seen in the AWS console
+    # DynamoDBClient.list_tables()
 
-    # Show results in dynamodb
-    DynamoDBClient.list_tables()
-
-    exit(0)
-
-    # Delete services
-    DynamoDBClient.delete_table(table_name)
+    # Do not delete resources, they are part of the submission
+    """DynamoDBClient.delete_table(table_name)
     S3Client.delete_bucket(bucket_name)
-    LambdaClient.delete_lambda(lambda_name, lambda_path)
+    LambdaClient.delete_lambda(lambda_name, lambda_path)"""
