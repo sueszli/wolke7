@@ -56,8 +56,9 @@ knitr::include_graphics("aws_architecture.png")
 # 4. Results
 
 Local Execution results:
-| Metric                  | Value                              |
-|-------------------------|------------------------------------|
+
+| Metric                   | Value                              |
+|:-------------------------|:-----------------------------------|
 | Total Images Processed   | 100                                |
 | Total Transfer Time      | 25.3988 seconds                    |
 | Average Transfer Time    | 0.2540 seconds                     |
