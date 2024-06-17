@@ -12,14 +12,7 @@ output:
 
 *Github Repository:* <https://github.com/sueszli/wolke7>
 
-# local development
-
-similar project: https://github.com/Haleshot/Object_Detection
-
-# cloud deployment
-
-
-event driven architecture: https://aws.amazon.com/event-driven-architecture/
+*About event driven architectures:* https://aws.amazon.com/event-driven-architecture/
 
 
 # 1. Introduction
