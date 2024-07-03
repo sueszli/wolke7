@@ -476,12 +476,13 @@ if __name__ == "__main__":
     # Invoke lambda with s3 event for each file in the data folder
     for file in data_path.rglob("*"):
         S3Client.upload_file(bucket_name, file)
-       
 
-    # Show results in dynamodb --> this doesn't work because it's async, results can be seen in the AWS console
-    # DynamoDBClient.list_tables()
+    # Show results in dynamodb
+    # DynamoDBClient.list_tables() # doesn't work because it's async, results can be seen in the AWS console
 
     # Do not delete resources, they are part of the submission
-    """DynamoDBClient.delete_table(table_name)
+    """
+    DynamoDBClient.delete_table(table_name)
     S3Client.delete_bucket(bucket_name)
-    LambdaClient.delete_lambda(lambda_name, lambda_path)"""
+    LambdaClient.delete_lambda(lambda_name, lambda_path)
+    """
