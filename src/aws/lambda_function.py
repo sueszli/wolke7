@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 TABLE_NAME = "wolke-sieben-table"
-BUCKET_NAME = "wolke-sieben-bucket-raquel"  # Replace with your bucket name
+BUCKET_NAME = "wolke-sieben-bucket-paul"  # Replace with your bucket name
 S3_FOLDER = "yolo_tiny_configs"
 LOCAL_TMP_FOLDER = "/tmp/yolo_tiny_configs/"
 

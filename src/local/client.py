@@ -5,6 +5,7 @@ import os
 import uuid
 import argparse
 import time
+import pandas as pd
 
 
 def get_args():
@@ -40,6 +41,7 @@ if __name__ == "__main__":
     total_transfer_time = 0
     total_inference_time = 0
     num_images = 0
+    collected_data = []
 
     for image_name in os.listdir(args.input_folder):
         if image_name.endswith((".jpg", ".jpeg", ".png")):
@@ -62,6 +64,8 @@ if __name__ == "__main__":
             total_inference_time += inference_time
             num_images += 1
 
+            collected_data.append({"imageid": image_id, "image_path": image_path, "transfertime": transfer_time, "inference_time": inference_time})
+
             print(json.dumps(response_data, indent=4))
             print(f"Transfer Time: {transfer_time:.4f} seconds")
             print(f"Inference Time: {inference_time:.4f} seconds")
@@ -81,3 +85,6 @@ if __name__ == "__main__":
 
     system_info = response.json()
     print("System Information:", json.dumps(system_info, indent=4))
+
+    df = pd.DataFrame(collected_data)
+    df.to_csv("local_results.csv", index=False)

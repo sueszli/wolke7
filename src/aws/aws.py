@@ -14,6 +14,8 @@ from pathlib import Path
 from tqdm import tqdm
 from colorama import Fore, Style
 
+import pandas as pd
+
 
 def assert_user_authenticated():
     sts = boto3.client("sts")
@@ -259,6 +261,35 @@ class DynamoDBClient:
         print(json.dumps(response, cls=DateTimeEncoder, indent=2))
         assert DynamoDBClient.table_exists(table_name)
 
+    def download_table(self, table_name: str, file_path: Path, transfer_times: list = None) -> None:
+        print(f"{Fore.GREEN}downloading table {table_name} to {file_path}{Style.RESET_ALL}")
+        assert self.table_exists(table_name)
+
+        all_data = []
+        response = self.c.scan(TableName=table_name)
+        all_data.extend(response["Items"])
+
+        while "LastEvaluatedKey" in response:
+            response = self.c.scan(TableName=table_name, ExclusiveStartKey=response["LastEvaluatedKey"])
+            all_data.extend(response["Items"])
+
+        extracted_data = []
+        for item in all_data:
+            s3_event_time = item.get("s3_eventTime", {}).get("S", "")
+            yolo_detection = item.get("yolo_detection", {}).get("M", {})
+            timestamp = item.get("timestamp", {}).get("S", "")
+
+            inference_time = yolo_detection.get("inference_time", {}).get("N", "")
+            input_image = yolo_detection.get("input_image", {}).get("S", "")
+
+            extracted_data.append({"s3_eventTime": s3_event_time, "inference_time": inference_time, "input_image": input_image, "timestamp": timestamp})
+
+        df = pd.DataFrame(extracted_data)
+        if transfer_times:
+            df["transfer_time"] = transfer_times
+        df.to_csv(file_path, index=False)
+        print(f"Data exported to {file_path}")
+
 
 class LambdaClient:
     c = boto3.client("lambda")
@@ -444,8 +475,9 @@ if __name__ == "__main__":
     assert_user_authenticated()
 
     table_name = TABLE_NAME
+    download_results = True
 
-    bucket_name = "wolke-sieben-bucket-raquel"
+    bucket_name = "wolke-sieben-bucket-paul"
     data_path = Path.cwd() / "data" / "input_folder"
 
     layer_name = "wolke-sieben-layer"
@@ -474,8 +506,17 @@ if __name__ == "__main__":
     S3Client.get_bucket_notification(bucket_name)
 
     # Invoke lambda with s3 event for each file in the data folder
+    transfer_time = []
     for file in data_path.rglob("*"):
+        start_time = time.time()
         S3Client.upload_file(bucket_name, file)
+        transfer_time.append(time.time() - start_time)
+
+    # Download data from dynamodb
+    if download_results:
+        time.sleep(40)  # wait until DynamoDB is populated
+        dynamodb_client = DynamoDBClient()
+        dynamodb_client.download_table(table_name, Path("aws_results.csv"), transfer_times=transfer_time)
 
     # Show results in dynamodb
     # DynamoDBClient.list_tables() # doesn't work because it's async, results can be seen in the AWS console
