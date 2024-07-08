@@ -71,3 +71,10 @@ Local Execution results:
 | Total Cores              | 8                                  |
 
 # 5. Conclusions
+
+This report analyzed the performance and scalability differences between local and AWS cloud-based execution of data-intensive tasks using an object detection application based on the YOLO algorithm. Testing
+with 100 images revealed that local deployment significantly outperforms cloud deployment, with a 2-3 times
+performance boost due to lower latency and reduced data transfer overhead.
+However, AWS cloud infrastructure offers superior scalability and flexibility, essential for handling larger
+datasets and variable workloads. While local execution is advantageous for smaller datasets with immediate
+processing needs, cloud deployment is ideal for extensive and dynamic tasks requiring scalable resources.
