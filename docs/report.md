@@ -10,7 +10,7 @@ output:
         number_sections: false
 ---
 
-*Github Repository:* <https://github.com/sueszli/wolke7>
+*Github Repository:* https://github.com/sueszli/wolke7
 
 *About event driven architectures:* https://aws.amazon.com/event-driven-architecture/
 
