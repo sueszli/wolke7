@@ -6,7 +6,7 @@ We benchmarked local and cloud inference for a tiny YOLO model:
 - Average inference times: 0.0939s (local) vs 0.7637s (cloud)
 - Cloud infrastructure scales better, but cold start of lambda can causes spikes in latency
 
-Benchmark:
+AWS Benchmark:
 
 | Metric                   | Value                              |
 |:-------------------------|:-----------------------------------|
