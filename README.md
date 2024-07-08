@@ -1,15 +1,10 @@
 ![AWS Architecture for Object Detection](./docs/assets/aws_architecture.png)
 
-We implemented a YOLO-based object detection system, comparing performance between local and AWS cloud deployments.
-
-Key findings:
+We benchmarked local and cloud inference times for YOLO:
 
 - Local execution outperformed cloud deployment by 2-3x for a 100-image dataset
 - Average inference times: 0.0939s (local) vs 0.7637s (cloud)
-- Cloud deployment offers superior scalability for larger workloads
-- Comprehensive analysis of transfer times, CPU usage, and system metrics
-- Evaluation of cloud providers (AWS, Azure, Genesis Cloud) for ML workloads
-- Discussion of real-world deployment challenges in edge computing scenarios
+- Cloud infrastructure scales better, but cold start of lambda reduces performance noticeably
 
 Benchmark:
 
@@ -25,3 +20,5 @@ Benchmark:
 | Min CPU Frequency        | 400.0 MHz                          |
 | Physical Cores           | 4                                  |
 | Total Cores              | 8                                  |
+
+See full report in `./docs/report.pdf`.
