@@ -1,6 +1,6 @@
 ![AWS Architecture for Object Detection](./docs/assets/aws_architecture.png)
 
-we benchmarked local and cloud inference for a tiny YOLO model:
+We benchmarked local and cloud inference for a tiny YOLO model:
 
 - Local execution outperformed cloud deployment by 2-3x for a 100-image dataset
 - Average inference times: 0.0939s (local) vs 0.7637s (cloud)
